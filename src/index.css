@@ -277,3 +277,12 @@ a { color: var(--accent); }
   .app-nav { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line); }
   .app-main { padding: 20px 16px 40px; }
 }
+
+ /*BOM line editing*/
+ 
+.small-button { min-height: 36px; padding: 0 10px; font-size: 13px; }
+.edit-row td { background: var(--rail); }
+.bom-edit-form { display: flex; flex-direction: column; gap: 12px; }
+.bom-edit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+.bom-edit-actions { display: flex; gap: 8px; }
+.bom-edit-actions .primary-button { margin-top: 0; padding: 0 18px; }

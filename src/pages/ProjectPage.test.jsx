@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -63,6 +63,56 @@ test('files tab lists uploaded files', async () => {
 
   await userEvent.click(await screen.findByRole('tab', { name: 'Files (2)' }))
   expect(screen.getByRole('link', { name: 'spec.pdf' })).toBeInTheDocument()
+})
+
+test('editing a BOM line saves changes and clears its flag', async () => {
+  api.mockImplementation(async (path, options) => {
+    if (options?.method === 'PATCH') return { material: { ...openLine, supplier: 'YKK' } }
+    return projectData
+  })
+  renderPage()
+
+  await screen.findByRole('region', { name: /Needs attention/ })
+  await userEvent.click(screen.getByRole('button', { name: 'Edit Zipper' }))
+  const form = screen.getByRole('form', { name: 'Edit Zipper' })
+  await userEvent.type(within(form).getByLabelText('Supplier'), 'YKK')
+  await userEvent.click(within(form).getByRole('button', { name: 'Save' }))
+
+  expect(api).toHaveBeenCalledWith('/materials/2', { method: 'PATCH', body: { supplier: 'YKK' } })
+  await waitFor(() =>
+    expect(screen.queryByRole('region', { name: /Needs attention/ })).not.toBeInTheDocument()
+  )
+  expect(screen.queryByRole('form')).not.toBeInTheDocument()
+})
+
+test('shows an error and keeps the editor open when saving fails', async () => {
+  api.mockImplementation(async (path, options) => {
+    if (options?.method === 'PATCH') throw new Error('Could not save')
+    return projectData
+  })
+  renderPage()
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit Zipper' }))
+  const form = screen.getByRole('form', { name: 'Edit Zipper' })
+  await userEvent.type(within(form).getByLabelText('Supplier'), 'YKK')
+  await userEvent.click(within(form).getByRole('button', { name: 'Save' }))
+
+  expect(await within(form).findByRole('alert')).toHaveTextContent('Could not save')
+})
+
+test('rejects a negative yield without calling the API', async () => {
+  api.mockResolvedValue(projectData)
+  renderPage()
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit Zipper' }))
+  const form = screen.getByRole('form', { name: 'Edit Zipper' })
+  const yieldInput = within(form).getByLabelText('Yield')
+  await userEvent.clear(yieldInput)
+  await userEvent.type(yieldInput, '-2')
+  await userEvent.click(within(form).getByRole('button', { name: 'Save' }))
+
+  expect(within(form).getByRole('alert')).toHaveTextContent('Yield must be a number of 0 or more.')
+  expect(api).not.toHaveBeenCalledWith('/materials/2', expect.anything())
 })
 
 test('shows not-found state on 404', async () => {

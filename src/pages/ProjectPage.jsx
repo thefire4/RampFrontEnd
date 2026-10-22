@@ -23,6 +23,25 @@ const REQUIRED_BOM_FIELDS = [
   ['quantity', 'yield'],
 ]
 
+// Fields a user can edit on a BOM line: [field, label, input type]
+const EDITABLE_FIELDS = [
+  ['name', 'Description'],
+  ['material', 'Material'],
+  ['supplier', 'Supplier'],
+  ['color', 'Color'],
+  ['quantity', 'Yield', 'number'],
+  ['uom', 'Unit'],
+  ['location', 'Placement'],
+  ['material_size', 'Size / width'],
+  ['article_no', 'Article #'],
+  ['supplier_contact', 'Responsible'],
+  ['notes', 'Notes'],
+]
+
+function toFormValue(value) {
+  return value === null || value === undefined ? '' : String(value)
+}
+
 function isBlank(value) {
   return value === null || value === undefined || String(value).trim() === ''
 }
@@ -190,7 +209,7 @@ function groupByCategory(lines) {
   return [...groups.entries()]
 }
 
-function BomRow({ m }) {
+function BomRow({ m, onEdit, editDisabled }) {
   const isOpen = missingFields(m).length > 0
   const cell = (value) => (isBlank(value) ? <span className="muted-dash">—</span> : value)
   const required = (value) => (isBlank(value) ? <Missing /> : value)
@@ -212,13 +231,113 @@ function BomRow({ m }) {
       <td>{isBlank(m.supplier_contact) ? <Missing /> : m.supplier_contact}</td>
       <td className="mono">{isBlank(m.quantity) ? <Missing /> : `${m.quantity} ${m.uom || ''}`.trim()}</td>
       <td className="wrap-cell">{cell(m.notes)}</td>
+      <td className="actions">
+        <button
+          type="button"
+          className="secondary-button small-button"
+          onClick={onEdit}
+          disabled={editDisabled}
+          aria-label={`Edit ${m.name || 'line'}`}
+        >
+          Edit
+        </button>
+      </td>
     </tr>
   )
 }
 
-function BomTab({ colorways }) {
+function BomEditRow({ m, onCancel, onSaved }) {
+  const [form, setForm] = useState(() =>
+    Object.fromEntries(EDITABLE_FIELDS.map(([field]) => [field, toFormValue(m[field])]))
+  )
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  function update(field) {
+    return (e) => setForm({ ...form, [field]: e.target.value })
+  }
+
+  async function handleSave(e) {
+    e.preventDefault()
+
+    // Only send fields that actually changed; blank means "clear it"
+    const changes = {}
+    for (const [field] of EDITABLE_FIELDS) {
+      const value = form[field].trim()
+      if (value !== toFormValue(m[field]).trim()) changes[field] = value === '' ? null : value
+    }
+
+    if ('quantity' in changes && changes.quantity !== null) {
+      const qty = Number(changes.quantity)
+      if (!Number.isFinite(qty) || qty < 0) {
+        setError('Yield must be a number of 0 or more.')
+        return
+      }
+      changes.quantity = qty
+    }
+
+    if (Object.keys(changes).length === 0) {
+      onCancel()
+      return
+    }
+
+    setError('')
+    setSaving(true)
+    try {
+      const data = await api(`/materials/${encodeURIComponent(m.id)}`, { method: 'PATCH', body: changes })
+      onSaved(data.material ?? { ...m, ...changes })
+    } catch (err) {
+      setError(err.message)
+      setSaving(false)
+    }
+  }
+
+  const label = `Edit ${m.name || 'line'}`
+
+  return (
+    <tr className="edit-row">
+      <td colSpan={9}>
+        <form
+          className="bom-edit-form"
+          aria-label={label}
+          onSubmit={handleSave}
+          onKeyDown={(e) => e.key === 'Escape' && onCancel()}
+          noValidate
+        >
+          {error && <div className="alert alert-error" role="alert">{error}</div>}
+          <div className="bom-edit-grid">
+            {EDITABLE_FIELDS.map(([field, fieldLabel, type]) => (
+              <div className="field" key={field}>
+                <label htmlFor={`edit-${m.id}-${field}`}>{fieldLabel}</label>
+                <input
+                  id={`edit-${m.id}-${field}`}
+                  type={type === 'number' ? 'number' : 'text'}
+                  step={type === 'number' ? 'any' : undefined}
+                  min={type === 'number' ? 0 : undefined}
+                  value={form[field]}
+                  onChange={update(field)}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="bom-edit-actions">
+            <button type="submit" className="primary-button" disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button type="button" className="secondary-button" onClick={onCancel} disabled={saving}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </td>
+    </tr>
+  )
+}
+
+function BomTab({ colorways, onMaterialSaved }) {
   const [selectedId, setSelectedId] = useState(colorways[0]?.id)
   const [openOnly, setOpenOnly] = useState(false)
+  const [editingId, setEditingId] = useState(null)
 
   if (colorways.length === 0) return <p className="muted">No BOM lines yet.</p>
 
@@ -232,7 +351,7 @@ function BomTab({ colorways }) {
       <div className="bom-toolbar">
         <div className="segmented" role="group" aria-label="Colorway">
           {colorways.map((c) => (
-            <button key={c.id} type="button" aria-pressed={c.id === selected.id} onClick={() => setSelectedId(c.id)}>
+            <button key={c.id} type="button" aria-pressed={c.id === selected.id} onClick={() => { setSelectedId(c.id); setEditingId(null) }}>
               {c.name} · {c.materials.length}
             </button>
           ))}
@@ -263,18 +382,33 @@ function BomTab({ colorways }) {
                   <th scope="col">Responsible</th>
                   <th scope="col">Yield</th>
                   <th scope="col">Notes</th>
+                  <th scope="col"><span className="visually-hidden">Actions</span></th>
                 </tr>
               </thead>
               {groups.map(([category, rows]) => (
                 <tbody key={category || 'all'}>
                   {category && (
                     <tr className="group-row">
-                      <th scope="colgroup" colSpan={8}>
+                      <th scope="colgroup" colSpan={9}>
                         {category} <span>{rows.length} {rows.length === 1 ? 'line' : 'lines'}</span>
                       </th>
                     </tr>
                   )}
-                  {rows.map((m) => <BomRow key={m.id} m={m} />)}
+                  {rows.map((m) =>
+                    m.id === editingId ? (
+                      <BomEditRow
+                        key={m.id}
+                        m={m}
+                        onCancel={() => setEditingId(null)}
+                        onSaved={(updated) => {
+                          onMaterialSaved(selected.id, updated)
+                          setEditingId(null)
+                        }}
+                      />
+                    ) : (
+                      <BomRow key={m.id} m={m} onEdit={() => setEditingId(m.id)} editDisabled={editingId !== null} />
+                    )
+                  )}
                 </tbody>
               ))}
             </table>
@@ -337,6 +471,18 @@ function ProjectView({ projectId }) {
     return () => { cancelled = true }
   }, [projectId])
 
+  // Swap the saved line into state; stats, flags and Needs attention recalculate from it
+  function handleMaterialSaved(colorwayId, updated) {
+    setData((prev) => ({
+      ...prev,
+      colorways: prev.colorways.map((c) =>
+        c.id !== colorwayId
+          ? c
+          : { ...c, materials: c.materials.map((m) => (m.id === updated.id ? { ...m, ...updated } : m)) }
+      ),
+    }))
+  }
+
   if (error) {
     const notFound = error.status === 404
     return (
@@ -379,7 +525,7 @@ function ProjectView({ projectId }) {
 
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="tab-panel">
-        {tab === 'bom' ? <BomTab colorways={colorways} /> : <FilesTab files={files} />}
+        {tab === 'bom' ? <BomTab colorways={colorways} onMaterialSaved={handleMaterialSaved} /> : <FilesTab files={files} />}
       </div>
     </>
   )
