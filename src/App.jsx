@@ -20,6 +20,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Navigate to="/projects" replace />} />
           <Route path="/projects" element={<ProjectsList />} />
+          <Route path="/projects/new" element={<Placeholder title="New project" />} />
           <Route path="/projects/:projectId" element={<ProjectPage />} />
           <Route path="/tasks" element={<Placeholder title="Tasks & follow-ups" />} />
           <Route path="/shipments" element={<Placeholder title="Shipments" />} />
