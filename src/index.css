@@ -166,6 +166,44 @@ a { color: var(--accent); }
 .empty-state h2 { margin: 0; font-size: 20px; }
 .empty-state p { margin: 0 0 8px; color: var(--muted); font-size: 14px; }
 
+/* Project page */
+.section-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.detail-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px 24px; margin: 0;
+}
+.detail-grid dt { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.detail-grid dd { margin: 4px 0 0; font-size: 15px; overflow-wrap: anywhere; }
+.segmented { display: flex; flex-wrap: wrap; gap: 6px; }
+.segmented button {
+  min-height: 36px; padding: 0 12px; cursor: pointer;
+  background: var(--panel); color: var(--ink-soft); border: 1px solid var(--line); border-radius: 6px;
+  font: inherit; font-size: 14px;
+}
+.segmented button:hover { background: var(--rail); }
+.segmented button[aria-pressed="true"] { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+.segmented .count { margin-left: 4px; font-size: 12px; opacity: 0.75; }
+.bom-table td { vertical-align: top; }
+.bom-table .wrap-cell { min-width: 200px; }
+.muted-dash { color: #a3a39c; }
+.sketch-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px;
+  margin: 0; padding: 0; list-style: none;
+}
+.sketch-grid a {
+  display: flex; flex-direction: column; gap: 6px; padding: 8px;
+  border: 1px solid var(--line); border-radius: 6px; color: var(--ink); text-decoration: none; font-size: 13px;
+}
+.sketch-grid a:hover { background: var(--rail); }
+.sketch-grid img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: var(--ground); border-radius: 4px; }
+.sketch-grid span { overflow-wrap: anywhere; }
+.file-list { margin: 0; padding: 0; list-style: none; }
+.file-list li {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px;
+}
+.file-list li:last-child { border-bottom: 0; }
+.file-list a { overflow-wrap: anywhere; }
+
 @media (max-width: 700px) {
   .app-nav { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line); }
   .app-main { padding: 20px 16px 40px; }
