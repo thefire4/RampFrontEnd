@@ -141,6 +141,31 @@ a { color: var(--accent); }
 }
 .danger-button:hover:not(:disabled) { background: #fbeaea; }
 
+/* Projects list */
+.page-header-actions { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.link-button { display: inline-flex; align-items: center; justify-content: center; padding: 0 18px; margin-top: 0; text-decoration: none; }
+.clickable-row { cursor: pointer; }
+.clickable-row:hover { background: var(--rail); }
+.row-title { font-weight: 600; color: var(--ink); text-decoration: none; }
+.row-title:hover { text-decoration: underline; }
+.row-subtitle { margin-top: 2px; font-size: 13px; color: var(--muted); }
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid transparent;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+.stage-in-progress { background: #e8edfb; border-color: #b7c4ef; color: #1f3fbf; }
+.stage-blocked { background: #fbeaea; border-color: #e3a5a5; color: #8a1c1c; }
+.stage-finished { background: #e9f5ec; border-color: #9fcfab; color: #1d5e2c; }
+.badge-ok { background: #e9f5ec; border-color: #9fcfab; color: #1d5e2c; }
+.badge-warn { background: #fdf3e1; border-color: #e8c27a; color: #7a4b00; }
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 48px 24px; text-align: center;
+  background: var(--panel); border: 1.5px dashed #a3a39c; border-radius: 8px;
+}
+.empty-state h2 { margin: 0; font-size: 20px; }
+.empty-state p { margin: 0 0 8px; color: var(--muted); font-size: 14px; }
+
 @media (max-width: 700px) {
   .app-nav { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line); }
   .app-main { padding: 20px 16px 40px; }
