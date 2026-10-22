@@ -77,7 +77,16 @@ function Missing() {
   return <span className="missing-text">Missing</span>
 }
 
-function ProjectHeader({ project }) {
+function MissingTotal({ count }) {
+  if (count === 0) return <span className="badge badge-ok">BOM complete</span>
+  return (
+    <span className="badge badge-missing" role="status">
+      {count} {count === 1 ? 'line' : 'lines'} missing info
+    </span>
+  )
+}
+
+function ProjectHeader({ project, missingTotal }) {
   const subtitle = [
     project.customer,
     project.season,
@@ -98,6 +107,7 @@ function ProjectHeader({ project }) {
           <h1>{project.name}</h1>
           {project.style_no && <span className="chip">{project.style_no}</span>}
           <StageBadge stage={project.stage} />
+          <MissingTotal count={missingTotal} />
         </div>
         {subtitle.length > 0 && <p>{subtitle.join(' · ')}</p>}
       </div>
@@ -209,10 +219,33 @@ function groupByCategory(lines) {
   return [...groups.entries()]
 }
 
+function MissingLabel({ fields }) {
+  const [open, setOpen] = useState(false)
+  const list = `Missing: ${fields.join(', ')}`
+
+  return (
+    <span className="missing-label">
+      <button
+        type="button"
+        className="badge badge-missing missing-toggle"
+        title={list}
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        Missing {fields.length}
+      </button>
+      {open && <span className="missing-list">{list}</span>}
+    </span>
+  )
+}
+
 function BomRow({ m, onEdit, editDisabled }) {
-  const isOpen = missingFields(m).length > 0
+  const gaps = missingFields(m)
+  const isOpen = gaps.length > 0
   const cell = (value) => (isBlank(value) ? <span className="muted-dash">—</span> : value)
   const required = (value) => (isBlank(value) ? <Missing /> : value)
+  // Highlights the cell itself when a required value is empty
+  const requiredCell = (field) => (isBlank(m[field]) ? 'cell-missing' : undefined)
 
   return (
     <tr className={isOpen ? 'row-open' : undefined}>
@@ -223,13 +256,16 @@ function BomRow({ m, onEdit, editDisabled }) {
           {required(m.material)}
         </div>
         {!isBlank(m.article_no) && <div className="row-subtitle mono">{m.article_no}</div>}
+        {isOpen && <MissingLabel fields={gaps} />}
       </td>
-      <td>{required(m.supplier)}</td>
-      <td>{required(m.color)}</td>
+      <td className={requiredCell('supplier')}>{required(m.supplier)}</td>
+      <td className={requiredCell('color')}>{required(m.color)}</td>
       <td className="wrap-cell">{cell(m.location)}</td>
       <td>{cell(m.material_size)}</td>
       <td>{isBlank(m.supplier_contact) ? <Missing /> : m.supplier_contact}</td>
-      <td className="mono">{isBlank(m.quantity) ? <Missing /> : `${m.quantity} ${m.uom || ''}`.trim()}</td>
+      <td className={['mono', requiredCell('quantity')].filter(Boolean).join(' ')}>
+        {isBlank(m.quantity) ? <Missing /> : `${m.quantity} ${m.uom || ''}`.trim()}
+      </td>
       <td className="wrap-cell">{cell(m.notes)}</td>
       <td className="actions">
         <button
@@ -513,6 +549,10 @@ function ProjectView({ projectId }) {
   const { project, colorways = [], files = [] } = data
   const sketches = files.filter(isImage)
   const totalLines = colorways.reduce((sum, c) => sum + c.materials.length, 0)
+  const missingTotal = colorways.reduce(
+    (sum, c) => sum + c.materials.filter((m) => missingFields(m).length > 0).length,
+    0
+  )
   const tabs = [
     { id: 'bom', label: `BOM (${totalLines})` },
     { id: 'files', label: `Files (${files.length})` },
@@ -520,7 +560,7 @@ function ProjectView({ projectId }) {
 
   return (
     <>
-      <ProjectHeader project={project} />
+      <ProjectHeader project={project} missingTotal={missingTotal} />
       <ProjectSummary project={project} sketches={sketches} />
 
       <Tabs tabs={tabs} active={tab} onChange={setTab} />

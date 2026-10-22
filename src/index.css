@@ -286,3 +286,9 @@ a { color: var(--accent); }
 .bom-edit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
 .bom-edit-actions { display: flex; gap: 8px; }
 .bom-edit-actions .primary-button { margin-top: 0; padding: 0 18px; }
+
+/* Missing info highlights */
+.bom-table .row-open td.cell-missing { background: #fbeaea; }
+.missing-label { display: block; margin-top: 6px; }
+.missing-toggle { cursor: pointer; font-family: inherit; }
+.missing-list { display: block; margin-top: 4px; font-size: 12px; color: #8a1c1c; }
