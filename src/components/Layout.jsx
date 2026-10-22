@@ -1,4 +1,6 @@
-import { NavLink, Outlet, Link } from 'react-router-dom'
+import { useState } from 'react'
+import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../auth/authContext.js'
 
 const navItems = [
   { to: '/projects', label: 'Projects' },
@@ -8,7 +10,25 @@ const navItems = [
   { to: '/activity', label: 'Activity log' },
 ]
 
+const adminNavItems = [{ to: '/users', label: 'Users' }]
+
 export default function Layout() {
+  const { user, isAdmin, logout } = useAuth()
+  const navigate = useNavigate()
+  const [loggingOut, setLoggingOut] = useState(false)
+
+  async function handleLogout() {
+    setLoggingOut(true)
+    try {
+      await logout()
+    } catch {
+      // Local session is cleared either way; nothing else to do.
+    }
+    navigate('/login', { replace: true })
+  }
+
+  const visibleNav = isAdmin ? [...navItems, ...adminNavItems] : navItems
+
   return (
     <div className="app">
       <header className="app-header">
@@ -20,12 +40,18 @@ export default function Layout() {
           <input id="global-search" type="search" placeholder="Search styles, POs, vendors" />
         </div>
 
-        <button type="button" className="header-button">Account</button>
+        <div className="header-account">
+          <span className="header-user">{user.username}</span>
+          <Link to="/account/password" className="header-button">Change password</Link>
+          <button type="button" className="header-button" onClick={handleLogout} disabled={loggingOut}>
+            {loggingOut ? 'Logging out…' : 'Log out'}
+          </button>
+        </div>
       </header>
 
       <div className="app-body">
         <nav className="app-nav" aria-label="Main">
-          {navItems.map((item) => (
+          {visibleNav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

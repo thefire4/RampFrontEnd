@@ -44,11 +44,15 @@ a { color: var(--accent); }
   border: 1px solid #6a6a63; border-radius: 6px;
   background: #2b2b28; color: var(--ground); font: inherit; font-size: 14px;
 }
+.header-account { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.header-user { font-size: 14px; color: #c9c9c2; margin-right: 4px; }
 .header-button {
-  height: 44px; padding: 0 14px; cursor: pointer;
+  display: inline-flex; align-items: center;
+  height: 44px; padding: 0 14px; cursor: pointer; text-decoration: none;
   background: transparent; color: var(--ground);
   border: 1px solid #6a6a63; border-radius: 6px; font: inherit; font-size: 14px;
 }
+.header-button:hover { background: #2b2b28; }
 
 /* Body: nav + main. Nav stacks on top on narrow screens. */
 .app-body { display: flex; flex-wrap: wrap; min-height: calc(100vh - 60px); }
@@ -93,6 +97,49 @@ a { color: var(--accent); }
   background: var(--accent); color: #fff; border: 0; border-radius: 6px;
   font: inherit; font-weight: 600;
 }
+
+.primary-button:disabled, .danger-button:disabled, .header-button:disabled { opacity: 0.6; cursor: default; }
+
+.loading-screen { min-height: 100vh; display: grid; place-items: center; color: var(--muted); }
+.muted { margin: 0; color: var(--muted); font-size: 14px; }
+
+/* Messages */
+.alert { padding: 10px 12px; border-radius: 6px; font-size: 14px; line-height: 1.4; }
+.alert-error { background: #fbeaea; border: 1px solid #e3a5a5; color: #8a1c1c; }
+.alert-success { background: #e9f5ec; border: 1px solid #9fcfab; color: #1d5e2c; }
+
+/* Forms and panels inside the app shell */
+.panel {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 20px 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+}
+.panel h2 { margin: 0; font-size: 18px; }
+.form-card {
+  max-width: 420px; display: flex; flex-direction: column; gap: 8px;
+  padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+}
+.form-card label, .field label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.form-card input, .field input, .field select {
+  height: 40px; padding: 0 12px; border: 1px solid #bdbdb6; border-radius: 6px;
+  font: inherit; background: #fff;
+}
+.form-card input { margin-bottom: 8px; }
+.inline-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.inline-form .alert { flex: 1 1 100%; }
+.field { flex: 1 1 180px; display: flex; flex-direction: column; gap: 6px; }
+.inline-form .primary-button { margin-top: 0; padding: 0 18px; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.data-table th, .data-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); }
+.data-table th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.data-table .actions { text-align: right; white-space: nowrap; }
+.danger-button {
+  min-height: 36px; padding: 0 12px; cursor: pointer;
+  background: #fff; color: #a12020; border: 1px solid #e3a5a5; border-radius: 6px; font: inherit; font-size: 14px;
+}
+.danger-button:hover:not(:disabled) { background: #fbeaea; }
 
 @media (max-width: 700px) {
   .app-nav { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line); }
