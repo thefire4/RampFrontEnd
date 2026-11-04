@@ -326,3 +326,8 @@ a.source-tag:hover { color: var(--accent); text-decoration-style: solid; }
 .missing-label { display: block; margin-top: 6px; }
 .missing-toggle { cursor: pointer; font-family: inherit; }
 .missing-list { display: block; margin-top: 4px; font-size: 12px; color: #8a1c1c; }
+
+
+/* Part detail: missing fields stand out */
+.detail-grid .detail-missing { padding: 6px 8px; margin: -6px -8px; border-radius: 6px; background: #fbeaea; }
+.form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
