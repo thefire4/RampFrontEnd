@@ -7,6 +7,8 @@ import ProjectPage from './pages/ProjectPage.jsx'
 import ChangePassword from './pages/ChangePassword.jsx'
 import Users from './pages/Users.jsx'
 import Placeholder from './pages/Placeholder.jsx'
+import MissingItems from './pages/MissingItems.jsx'
+import PartDetail from './pages/PartDetail.jsx'
 
 export default function App() {
   return (
@@ -22,6 +24,8 @@ export default function App() {
           <Route path="/projects" element={<ProjectsList />} />
           <Route path="/projects/new" element={<Placeholder title="New project" />} />
           <Route path="/projects/:projectId" element={<ProjectPage />} />
+          <Route path="/projects/:projectId/missing" element={<MissingItems />} />
+          <Route path="/projects/:projectId/parts/:partId" element={<PartDetail />} />
           <Route path="/tasks" element={<Placeholder title="Tasks & follow-ups" />} />
           <Route path="/shipments" element={<Placeholder title="Shipments" />} />
           <Route path="/inventory" element={<Placeholder title="Inventory" />} />
