@@ -232,6 +232,37 @@ function ProjectHeader({ project, missingTotal }) {
   )
 }
 
+// The date input needs YYYY-MM-DD; the API may send a full timestamp
+function dateInputValue(value) {
+  if (isBlank(value)) return ''
+  const match = /^\d{4}-\d{2}-\d{2}/.exec(String(value))
+  return match ? match[0] : ''
+}
+
+function ProjectDetailsForm({ project, onCancel, onSaved }) {
+  const values = { ...project, project_date: dateInputValue(project.project_date) }
+  const missing = PROJECT_FIELDS.filter((f) => isBlank(values[f.name])).map((f) => f.name)
+
+  async function save(changes) {
+    const data = await api(`/projects/${encodeURIComponent(project.id)}`, { method: 'PATCH', body: changes })
+    const saved = data.project ?? { ...project, ...changes }
+    // The save response has no sources, so mark what was just typed in as entered by hand
+    onSaved({ ...saved, fields: markEnteredByHand(project.fields, changes) })
+  }
+
+  return (
+    <EditForm
+      label="Edit project details"
+      idPrefix={`project-${project.id}`}
+      fields={PROJECT_FIELDS}
+      values={values}
+      missing={missing}
+      onSave={save}
+      onCancel={onCancel}
+    />
+  )
+}
+
 // Whole-project overview: how many BOM lines are complete vs still missing info
 function ProjectCompleteness({ colorways }) {
   const lines = colorways.flatMap((c) => c.materials)
@@ -279,38 +310,6 @@ function ProjectCompleteness({ colorways }) {
         </>
       )}
     </section>
-  )
-}
-
-function ProjectSummary({ project, sketches }) {
-// The date input needs YYYY-MM-DD; the API may send a full timestamp
-function dateInputValue(value) {
-  if (isBlank(value)) return ''
-  const match = /^\d{4}-\d{2}-\d{2}/.exec(String(value))
-  return match ? match[0] : ''
-}
-
-function ProjectDetailsForm({ project, onCancel, onSaved }) {
-  const values = { ...project, project_date: dateInputValue(project.project_date) }
-  const missing = PROJECT_FIELDS.filter((f) => isBlank(values[f.name])).map((f) => f.name)
-
-  async function save(changes) {
-    const data = await api(`/projects/${encodeURIComponent(project.id)}`, { method: 'PATCH', body: changes })
-    const saved = data.project ?? { ...project, ...changes }
-    // The save response has no sources, so mark what was just typed in as entered by hand
-    onSaved({ ...saved, fields: markEnteredByHand(project.fields, changes) })
-  }
-
-  return (
-    <EditForm
-      label="Edit project details"
-      idPrefix={`project-${project.id}`}
-      fields={PROJECT_FIELDS}
-      values={values}
-      missing={missing}
-      onSave={save}
-      onCancel={onCancel}
-    />
   )
 }
 
@@ -774,7 +773,7 @@ function ProjectView({ projectId }) {
       <ProjectHeader project={project} missingTotal={missingTotal} />
       <ProjectSummary project={project} sketches={sketches} onSaved={handleProjectSaved} />
       <ProjectCompleteness colorways={colorways} />
-      
+
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="tab-panel">
         {tab === 'bom' ? <BomTab colorways={colorways} onMaterialSaved={handleMaterialSaved} /> : <FilesTab files={files} />}
