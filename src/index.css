@@ -367,3 +367,6 @@ a.source-tag:hover { color: var(--accent); text-decoration-style: solid; }
   .viewer-stage { padding: 12px 8px 64px; }
   .viewer-nav { top: auto; bottom: 10px; transform: none; }
 }
+/* Part detail: missing fields stand out */
+.detail-grid .detail-missing { padding: 6px 8px; margin: -6px -8px; border-radius: 6px; background: #fbeaea; }
+.form-actions { display: flex; flex-wrap: wrap; gap: 8px; }

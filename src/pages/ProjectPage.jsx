@@ -222,6 +222,9 @@ function ProjectHeader({ project, missingTotal }) {
           {project.style_no && <span className="chip">{project.style_no}</span>}
           <StageBadge stage={project.stage} />
           <MissingTotal count={missingTotal} />
+          <Link to={`/projects/${project.id}/missing`} className="secondary-button link-button small-button">
+            View missing items
+          </Link>
         </div>
         {subtitle.length > 0 && <p>{subtitle.join(' · ')}</p>}
       </div>
@@ -423,6 +426,7 @@ function MissingLabel({ fields }) {
 }
 
 function BomRow({ m, onEdit, editDisabled }) {
+  const { projectId } = useParams()
   const gaps = missingFields(m)
   const isOpen = gaps.length > 0
   const cell = (value) => (isBlank(value) ? <span className="muted-dash">—</span> : value)
@@ -443,7 +447,9 @@ function BomRow({ m, onEdit, editDisabled }) {
     <tr className={isOpen ? 'row-open' : undefined}>
       <td>
         <div className="row-title">
-          <span title={tip('name')}>{m.name || 'Unnamed line'}</span>
+           <Link to={`/projects/${projectId}/parts/${m.id}`} title={tip('name')} className="row-title">
+            {m.name || 'Unnamed line'}
+          </Link>
           {' · '}
           <span title={tip('material')}>{required(m.material)}</span>
         </div>
