@@ -115,6 +115,56 @@ function ProjectHeader({ project, missingTotal }) {
   )
 }
 
+// Whole-project overview: how many BOM lines are complete vs still missing info
+function ProjectCompleteness({ colorways }) {
+  const lines = colorways.flatMap((c) => c.materials)
+  const missing = lines.filter((m) => missingFields(m).length > 0).length
+  const complete = lines.length - missing
+  const percent = lines.length ? Math.round((complete / lines.length) * 100) : 0
+
+  return (
+    <section className="panel" aria-label="BOM completeness">
+      <h2>BOM completeness</h2>
+      {lines.length === 0 ? (
+        <p className="muted">No BOM lines yet. Upload a BOM to see what's complete.</p>
+      ) : (
+        <>
+          <div className="stat-grid">
+            <div className="stat-card">
+              <div className="eyebrow">Complete</div>
+              <div className="stat-value stat-good">{complete}</div>
+              <div className="muted">lines with every required field</div>
+            </div>
+            <div className="stat-card">
+              <div className="eyebrow">Missing info</div>
+              <div className={`stat-value ${missing ? 'stat-bad' : ''}`}>{missing}</div>
+              <div className="muted">lines still need details</div>
+            </div>
+            <div className="stat-card">
+              <div className="eyebrow">Total lines</div>
+              <div className="stat-value">{lines.length}</div>
+              <div className="muted">across {colorways.length} {colorways.length === 1 ? 'colorway' : 'colorways'}</div>
+            </div>
+          </div>
+          <div className="progress-cell">
+            <div
+              className="progress"
+              role="progressbar"
+              aria-valuenow={percent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Project BOM complete"
+            >
+              <div style={{ width: `${percent}%` }} />
+            </div>
+            <span className="percent">{percent}% complete</span>
+          </div>
+        </>
+      )}
+    </section>
+  )
+}
+
 function ProjectSummary({ project, sketches }) {
   const details = [
     ['Customer', project.customer],
@@ -562,6 +612,7 @@ function ProjectView({ projectId }) {
     <>
       <ProjectHeader project={project} missingTotal={missingTotal} />
       <ProjectSummary project={project} sketches={sketches} />
+      <ProjectCompleteness colorways={colorways} />
 
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="tab-panel">
