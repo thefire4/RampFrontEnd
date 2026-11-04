@@ -272,6 +272,23 @@ a { color: var(--accent); }
 .file-list li:last-child { border-bottom: 0; }
 .file-list a { overflow-wrap: anywhere; }
 
+/* Value sources (RAMP-136): kept small so the BOM stays easy to read */
+.source-tag {
+  display: block; width: fit-content; max-width: 100%; margin-top: 3px;
+  font-size: 11px; font-weight: 400; line-height: 1.3; color: var(--muted);
+  /* One line; the full file name is in the tooltip */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+a.source-tag { text-decoration: underline dotted; text-underline-offset: 2px; }
+a.source-tag:hover { color: var(--accent); text-decoration-style: solid; }
+.source-file::before { content: "\2197\00a0"; }
+.source-manual { font-style: italic; }
+.detail-grid dd .source-tag { margin-top: 2px; }
+/* The file most details came from, named once above the details */
+.summary-details { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.summary-source { margin: 0; font-size: 12px; color: var(--muted); }
+.summary-source .source-tag { display: inline; margin: 0; font-size: 12px; }
+
 @media (max-width: 700px) {
   .project-summary { grid-template-columns: 1fr; }
   .app-nav { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line); }

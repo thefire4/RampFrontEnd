@@ -121,3 +121,127 @@ test('shows not-found state on 404', async () => {
 
   expect(await screen.findByRole('heading', { name: 'Project not found' })).toBeInTheDocument()
 })
+// RAMP-136: where each value came from
+const bomFile = { kind: 'file', file_name: 'BOM_DW11038.xlsx', file_id: 9, url: '/api/projects/7/files/9', sheet: 'NAVY', row: 12 }
+const byHand = { kind: 'manual', file_name: null, file_id: null, url: null }
+const fromFile = (value, row) => ({ value, source: { ...bomFile, row } })
+
+const sourcedData = {
+  ...projectData,
+  project: {
+    ...projectData.project,
+    fields: {
+      customer: { value: 'Acme', source: bomFile },
+      season: { value: 'SS27', source: byHand },
+    },
+  },
+  colorways: [{
+    id: 'c1',
+    name: 'Navy',
+    materials: [{
+      ...fullLine,
+      fields: {
+        name: fromFile('Shell', 12),
+        material: fromFile('Cotton twill', 12),
+        supplier: fromFile('YKK', 12),
+        color: { value: 'Navy', source: byHand },
+        quantity: fromFile(1.5, 12),
+        uom: fromFile('yd', 12),
+      },
+    }, openLine],
+  }],
+}
+
+test('project details show where each value came from', async () => {
+  api.mockResolvedValue(sourcedData)
+  renderPage()
+
+  const details = await screen.findByRole('region', { name: 'Project details' })
+  const fileLink = within(details).getByRole('link', { name: 'BOM_DW11038.xlsx' })
+  expect(fileLink).toHaveAttribute('href', '/api/projects/7/files/9')
+  expect(fileLink).toHaveAttribute('target', '_blank')
+  expect(within(details).getByText('Entered by hand')).toBeInTheDocument()
+})
+
+test('BOM shows the file once per line and labels values from elsewhere', async () => {
+  api.mockResolvedValue(sourcedData)
+  renderPage()
+
+  const bom = await screen.findByRole('region', { name: 'BOM lines for Navy' })
+  const row = within(bom).getByText('YKK').closest('tr')
+
+  // One file label for the row, not one per value
+  expect(within(row).getAllByRole('link', { name: 'BOM_DW11038.xlsx' })).toHaveLength(1)
+  // The color was typed in, so it gets its own label
+  expect(within(row).getByText('Navy').closest('td')).toHaveTextContent('Entered by hand')
+  // Hovering a value shows its exact source
+  expect(within(row).getByText('YKK').closest('td')).toHaveAttribute('title', 'From BOM_DW11038.xlsx (sheet NAVY, row 12)')
+})
+
+test('values without a known source show no label', async () => {
+  api.mockResolvedValue(projectData)
+  renderPage()
+
+  await screen.findByRole('region', { name: 'Project details' })
+  expect(screen.queryByText('Entered by hand')).not.toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: /\.xlsx/ })).not.toBeInTheDocument()
+})
+
+test('an edited value is labelled as entered by hand', async () => {
+  api.mockImplementation(async (path, options) => {
+    if (options?.method === 'PATCH') return { material: { ...fullLine, supplier: 'Talon' } }
+    return sourcedData
+  })
+  renderPage()
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit Shell' }))
+  const form = screen.getByRole('form', { name: 'Edit Shell' })
+  const supplier = within(form).getByLabelText('Supplier')
+  await userEvent.clear(supplier)
+  await userEvent.type(supplier, 'Talon')
+  await userEvent.click(within(form).getByRole('button', { name: 'Save' }))
+
+  const cell = (await screen.findByText('Talon')).closest('td')
+  expect(cell).toHaveTextContent('Entered by hand')
+  expect(cell).toHaveAttribute('title', 'Entered by hand')
+})
+
+// Found testing with the real sample files (RAMP-130): long file names flooded the page
+const longName = "DW11038_M's Snowcrest_Shirt Jac_ REV2 BTUSA PO 1654 07.10.2026 (2).xlsx"
+const longFile = { ...bomFile, file_name: longName }
+
+test('project details name their file once and keep long file names short', async () => {
+  const fields = Object.fromEntries(
+    ['customer', 'style_no', 'po_no'].map((f) => [f, { value: 'x', source: { ...longFile, row: 4 } }])
+  )
+  fields.season = { value: 'SS27', source: byHand }
+  api.mockResolvedValue({
+    ...projectData,
+    project: { ...projectData.project, po_no: '1654', fields },
+  })
+  renderPage()
+
+  const details = await screen.findByRole('region', { name: 'Project details' })
+  // One link for the whole panel, with a short label and the full name on hover
+  const links = within(details).getAllByRole('link', { name: /DW11038/ })
+  expect(links).toHaveLength(1)
+  expect(links[0]).toHaveTextContent("DW11038_M's Snowcr…(2).xlsx")
+  expect(links[0]).toHaveAttribute('title', `From ${longName} (sheet NAVY, row 4). Opens the original file.`)
+  expect(within(details).getByText(/Details from/)).toBeInTheDocument()
+
+  // A value from somewhere else still gets its own label
+  expect(within(details).getByText('SS27').closest('dd')).toHaveTextContent('Entered by hand')
+  // Hovering a value still shows its exact source
+  expect(within(details).getByText('Acme').closest('dd')).toHaveAttribute('title', `From ${longName} (sheet NAVY, row 4)`)
+})
+
+test('BOM rows shorten long file names too', async () => {
+  const line = { ...fullLine, fields: { name: { value: 'Shell', source: longFile }, supplier: { value: 'YKK', source: longFile } } }
+  api.mockResolvedValue({ ...projectData, colorways: [{ id: 'c1', name: 'Navy', materials: [line] }] })
+  renderPage()
+
+  const bom = await screen.findByRole('region', { name: 'BOM lines for Navy' })
+  const link = within(bom).getByRole('link', { name: /DW11038/ })
+  expect(link.textContent.length).toBeLessThanOrEqual(28)
+  expect(link).toHaveAttribute('title', expect.stringContaining(longName))
+})
