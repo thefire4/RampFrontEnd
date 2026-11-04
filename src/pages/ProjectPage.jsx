@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api.js'
 import EditForm from '../components/EditForm.jsx'
+import ImageGallery from '../components/ImageGallery.jsx'
 
 // Follows the Sprint 1 project page wireframe.
 // Expects GET /api/projects/:id to return
@@ -326,21 +327,8 @@ function ProjectSummary({ project, sketches, onSaved }) {
       </div>
 
       <div className="summary-sketches">
-        <h2 className="eyebrow">Sketches</h2>
-        {sketches.length === 0 ? (
-          <div className="sketch-placeholder">No sketches uploaded yet</div>
-        ) : (
-          <ul className="sketch-grid">
-            {sketches.map((file) => (
-              <li key={file.id}>
-                <a href={file.url} target="_blank" rel="noreferrer">
-                  <img src={file.url} alt={file.file_name} loading="lazy" />
-                  <span>{file.file_name}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
+               <h2 className="eyebrow">Sketches &amp; images{sketches.length > 0 && ` · ${sketches.length}`}</h2>
+        <ImageGallery images={sketches} />
       </div>
     </section>
   )
