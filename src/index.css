@@ -130,7 +130,9 @@ a { color: var(--accent); }
 .inline-form .primary-button { margin-top: 0; padding: 0 18px; }
 
 /* Tables */
-.table-wrap { overflow-x: auto; }
+/* position: relative keeps absolutely positioned children (the hidden "Actions" header) inside the scroll box,
+   otherwise a wide table makes the whole page scroll sideways on phones */
+.table-wrap { position: relative; overflow-x: auto; }
 .data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .data-table th, .data-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); }
 .data-table th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
