@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api.js'
 import EditForm from '../components/EditForm.jsx'
+import ImageGallery from '../components/ImageGallery.jsx'
 
 // Follows the Sprint 1 project page wireframe.
 // Expects GET /api/projects/:id to return
@@ -221,6 +222,9 @@ function ProjectHeader({ project, missingTotal }) {
           {project.style_no && <span className="chip">{project.style_no}</span>}
           <StageBadge stage={project.stage} />
           <MissingTotal count={missingTotal} />
+          <Link to={`/projects/${project.id}/missing`} className="secondary-button link-button small-button">
+            View missing items
+          </Link>
         </div>
         {subtitle.length > 0 && <p>{subtitle.join(' · ')}</p>}
       </div>
@@ -326,21 +330,8 @@ function ProjectSummary({ project, sketches, onSaved }) {
       </div>
 
       <div className="summary-sketches">
-        <h2 className="eyebrow">Sketches</h2>
-        {sketches.length === 0 ? (
-          <div className="sketch-placeholder">No sketches uploaded yet</div>
-        ) : (
-          <ul className="sketch-grid">
-            {sketches.map((file) => (
-              <li key={file.id}>
-                <a href={file.url} target="_blank" rel="noreferrer">
-                  <img src={file.url} alt={file.file_name} loading="lazy" />
-                  <span>{file.file_name}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
+               <h2 className="eyebrow">Sketches &amp; images{sketches.length > 0 && ` · ${sketches.length}`}</h2>
+        <ImageGallery images={sketches} />
       </div>
     </section>
   )
@@ -435,6 +426,7 @@ function MissingLabel({ fields }) {
 }
 
 function BomRow({ m, onEdit, editDisabled }) {
+  const { projectId } = useParams()
   const gaps = missingFields(m)
   const isOpen = gaps.length > 0
   const cell = (value) => (isBlank(value) ? <span className="muted-dash">—</span> : value)
@@ -455,7 +447,9 @@ function BomRow({ m, onEdit, editDisabled }) {
     <tr className={isOpen ? 'row-open' : undefined}>
       <td>
         <div className="row-title">
-          <span title={tip('name')}>{m.name || 'Unnamed line'}</span>
+           <Link to={`/projects/${projectId}/parts/${m.id}`} title={tip('name')} className="row-title">
+            {m.name || 'Unnamed line'}
+          </Link>
           {' · '}
           <span title={tip('material')}>{required(m.material)}</span>
         </div>

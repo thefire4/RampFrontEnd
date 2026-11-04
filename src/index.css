@@ -334,3 +334,45 @@ a.source-tag:hover { color: var(--accent); text-decoration-style: solid; }
 .filter-bar .filter-search { flex: 2 1 260px; }
 .filter-bar .secondary-button { min-height: 40px; }
 .result-count { margin: 0; font-size: 13px; color: var(--muted); }
+
+/* Image gallery thumbnails and full-size viewer */
+.sketch-grid .thumb {
+  display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 0; cursor: zoom-in;
+  background: none; border: 0; color: var(--muted); font: inherit; font-size: 12px; text-align: left;
+}
+.sketch-grid .thumb span { overflow-wrap: anywhere; }
+.sketch-grid .thumb:hover img { border-color: var(--ink-soft); }
+.image-fallback {
+  display: grid; place-items: center; align-content: center; gap: 4px; width: 100%; aspect-ratio: 3 / 4;
+  background: var(--ground); border: 1.5px dashed #a3a39c; border-radius: 6px; color: var(--muted); font-size: 12px;
+}
+.image-fallback-large { aspect-ratio: auto; min-height: 50vh; font-size: 14px; }
+.viewer-backdrop {
+  position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px;
+  background: rgba(20, 20, 18, 0.82);
+}
+.viewer {
+  display: flex; flex-direction: column; width: min(1100px, 100%); max-height: 100%;
+  background: var(--panel); border-radius: 8px; overflow: hidden;
+}
+.viewer-bar { display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--line); }
+.viewer-title { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewer-count { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.viewer-link { font-size: 13px; }
+.viewer-close, .viewer-nav {
+  display: grid; place-items: center; width: 44px; height: 44px; cursor: pointer;
+  background: var(--panel); color: var(--ink); border: 1px solid #bdbdb6; border-radius: 999px; font: inherit; font-size: 26px; line-height: 1;
+}
+.viewer-close:hover, .viewer-nav:hover { background: var(--rail); }
+.viewer-stage { position: relative; display: grid; place-items: center; padding: 16px 64px; background: var(--ground); min-height: 50vh; }
+.viewer-image { display: block; max-width: 100%; max-height: 75vh; object-fit: contain; }
+.viewer-nav { position: absolute; top: 50%; transform: translateY(-50%); }
+.viewer-prev { left: 12px; }
+.viewer-next { right: 12px; }
+@media (max-width: 700px) {
+  .viewer-stage { padding: 12px 8px 64px; }
+  .viewer-nav { top: auto; bottom: 10px; transform: none; }
+}
+/* Part detail: missing fields stand out */
+.detail-grid .detail-missing { padding: 6px 8px; margin: -6px -8px; border-radius: 6px; background: #fbeaea; }
+.form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
