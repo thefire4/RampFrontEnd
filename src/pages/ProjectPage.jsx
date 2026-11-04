@@ -6,6 +6,7 @@ import { api } from '../api.js'
 // Expects GET /api/projects/:id to return
 // { project: {...}, colorways: [{ id, name, materials: [...] }], files: [{ id, file_name, file_type, url, created_at }] }
 // A material may include an optional `category` (e.g. "Fabric", "Trims"); the BOM table groups by it when present.
+// The project and each material may include `fields: { [field]: { value, source } }` saying where each value came from.
 
 const stageLabels = {
   'in progress': 'In progress',
@@ -77,6 +78,78 @@ function Missing() {
   return <span className="missing-text">Missing</span>
 }
 
+// Where a value came from, as sent by the API in `fields[field].source`.
+// kind is "file", "manual", "generated", "unknown" or "missing".
+function sourceOf(entity, field) {
+  return entity.fields?.[field]?.source ?? null
+}
+
+function describeSource(source) {
+  if (!source) return null
+  if (source.kind === 'file') {
+    const where = [source.sheet && `sheet ${source.sheet}`, source.row && `row ${source.row}`].filter(Boolean).join(', ')
+    return { label: source.file_name || 'Uploaded file', where, url: source.url }
+  }
+  if (source.kind === 'manual') return { label: 'Entered by hand' }
+  if (source.kind === 'generated') return { label: 'Set automatically' }
+  // "unknown" and "missing" have nothing useful to show
+  return null
+}
+
+// Text for hover tooltips, e.g. "From BOM.xlsx (sheet BLACK, row 14)"
+function sourceTitle(source) {
+  const info = describeSource(source)
+  if (!info) return undefined
+  if (!info.url && !source.file_name) return info.label
+  return `From ${info.label}${info.where ? ` (${info.where})` : ''}`
+}
+
+// Same source = same kind and same file
+function sourceKey(source) {
+  return source ? `${source.kind}:${source.file_id ?? ''}` : ''
+}
+
+function SourceTag({ source }) {
+  const info = describeSource(source)
+  if (!info) return null
+  const title = sourceTitle(source)
+
+  if (info.url) {
+    return (
+      <a className="source-tag source-file" href={info.url} target="_blank" rel="noreferrer" title={`${title}. Opens the original file.`}>
+        {info.label}
+      </a>
+    )
+  }
+  return <span className="source-tag source-manual" title={title}>{info.label}</span>
+}
+
+// The source most of a BOM line's filled-in values share, shown once per row
+function primarySource(m) {
+  const counts = new Map()
+  for (const entry of Object.values(m.fields ?? {})) {
+    if (isBlank(entry?.value) || !describeSource(entry.source)) continue
+    const key = sourceKey(entry.source)
+    const current = counts.get(key) ?? { source: entry.source, count: 0 }
+    counts.set(key, { ...current, count: current.count + 1 })
+  }
+  let best = null
+  for (const candidate of counts.values()) {
+    if (!best || candidate.count > best.count) best = candidate
+  }
+  return best?.source ?? null
+}
+
+// After a save, the edited fields were typed in by hand
+function markEnteredByHand(fields, changes) {
+  if (!fields) return fields
+  const next = { ...fields }
+  for (const [field, value] of Object.entries(changes)) {
+    next[field] = { value, source: { kind: 'manual' } }
+  }
+  return next
+}
+
 function MissingTotal({ count }) {
   if (count === 0) return <span className="badge badge-ok">BOM complete</span>
   return (
@@ -116,25 +189,29 @@ function ProjectHeader({ project, missingTotal }) {
 }
 
 function ProjectSummary({ project, sketches }) {
+  // [label, value, field name the API uses for its source]
   const details = [
-    ['Customer', project.customer],
-    ['Season', project.season],
-    ['Date', formatDate(project.project_date || project.created_at)],
-    ['Size range', project.size_range],
-    ['Main fabric', project.fabric_yarn],
-    ['Designer', project.designer],
-    ['Style #', project.style_no],
-    ['PO #', project.po_no],
-    ['Weight', project.weight],
+    ['Customer', project.customer, 'customer'],
+    ['Season', project.season, 'season'],
+    ['Date', formatDate(project.project_date || project.created_at), 'project_date'],
+    ['Size range', project.size_range, 'size_range'],
+    ['Main fabric', project.fabric_yarn, 'fabric_yarn'],
+    ['Designer', project.designer, 'designer'],
+    ['Style #', project.style_no, 'style_no'],
+    ['PO #', project.po_no, 'po_no'],
+    ['Weight', project.weight, 'weight'],
   ]
 
   return (
     <section className="panel project-summary" aria-label="Project details">
       <dl className="detail-grid">
-        {details.map(([label, value]) => (
+        {details.map(([label, value, field]) => (
           <div key={label}>
             <dt>{label}</dt>
-            <dd>{isBlank(value) ? '—' : value}</dd>
+            <dd>
+              {isBlank(value) ? '—' : value}
+              {!isBlank(value) && <SourceTag source={sourceOf(project, field)} />}
+            </dd>
           </div>
         ))}
       </dl>
@@ -247,26 +324,41 @@ function BomRow({ m, onEdit, editDisabled }) {
   // Highlights the cell itself when a required value is empty
   const requiredCell = (field) => (isBlank(m[field]) ? 'cell-missing' : undefined)
 
+  // The row shows its main source once; a value only gets its own label when it came from somewhere else
+  const rowSource = primarySource(m)
+  const tip = (field) => (isBlank(m[field]) ? undefined : sourceTitle(sourceOf(m, field)))
+  const ownSource = (field) => {
+    const source = sourceOf(m, field)
+    if (isBlank(m[field]) || sourceKey(source) === sourceKey(rowSource)) return null
+    return <SourceTag source={source} />
+  }
+
   return (
     <tr className={isOpen ? 'row-open' : undefined}>
       <td>
         <div className="row-title">
-          {m.name || 'Unnamed line'}
+          <span title={tip('name')}>{m.name || 'Unnamed line'}</span>
           {' · '}
-          {required(m.material)}
+          <span title={tip('material')}>{required(m.material)}</span>
         </div>
-        {!isBlank(m.article_no) && <div className="row-subtitle mono">{m.article_no}</div>}
+        {!isBlank(m.article_no) && <div className="row-subtitle mono" title={tip('article_no')}>{m.article_no}</div>}
+        {rowSource && <SourceTag source={rowSource} />}
+        {ownSource('material')}
         {isOpen && <MissingLabel fields={gaps} />}
       </td>
-      <td className={requiredCell('supplier')}>{required(m.supplier)}</td>
-      <td className={requiredCell('color')}>{required(m.color)}</td>
-      <td className="wrap-cell">{cell(m.location)}</td>
-      <td>{cell(m.material_size)}</td>
-      <td>{isBlank(m.supplier_contact) ? <Missing /> : m.supplier_contact}</td>
-      <td className={['mono', requiredCell('quantity')].filter(Boolean).join(' ')}>
-        {isBlank(m.quantity) ? <Missing /> : `${m.quantity} ${m.uom || ''}`.trim()}
+      <td className={requiredCell('supplier')} title={tip('supplier')}>{required(m.supplier)}{ownSource('supplier')}</td>
+      <td className={requiredCell('color')} title={tip('color')}>{required(m.color)}{ownSource('color')}</td>
+      <td className="wrap-cell" title={tip('location')}>{cell(m.location)}{ownSource('location')}</td>
+      <td title={tip('material_size')}>{cell(m.material_size)}{ownSource('material_size')}</td>
+      <td title={tip('supplier_contact')}>
+        {isBlank(m.supplier_contact) ? <Missing /> : m.supplier_contact}
+        {ownSource('supplier_contact')}
       </td>
-      <td className="wrap-cell">{cell(m.notes)}</td>
+      <td className={['mono', requiredCell('quantity')].filter(Boolean).join(' ')} title={tip('quantity')}>
+        {isBlank(m.quantity) ? <Missing /> : `${m.quantity} ${m.uom || ''}`.trim()}
+        {ownSource('quantity')}
+      </td>
+      <td className="wrap-cell" title={tip('notes')}>{cell(m.notes)}{ownSource('notes')}</td>
       <td className="actions">
         <button
           type="button"
@@ -321,7 +413,9 @@ function BomEditRow({ m, onCancel, onSaved }) {
     setSaving(true)
     try {
       const data = await api(`/materials/${encodeURIComponent(m.id)}`, { method: 'PATCH', body: changes })
-      onSaved(data.material ?? { ...m, ...changes })
+      const saved = data.material ?? { ...m, ...changes }
+      // The save response has no sources, so mark what was just typed in as entered by hand
+      onSaved({ ...saved, fields: markEnteredByHand(m.fields, changes) })
     } catch (err) {
       setError(err.message)
       setSaving(false)
