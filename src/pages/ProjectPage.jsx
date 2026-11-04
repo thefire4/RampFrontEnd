@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api.js'
+import EditForm from '../components/EditForm.jsx'
+import ImageGallery from '../components/ImageGallery.jsx'
 
 // Follows the Sprint 1 project page wireframe.
 // Expects GET /api/projects/:id to return
 // { project: {...}, colorways: [{ id, name, materials: [...] }], files: [{ id, file_name, file_type, url, created_at }] }
 // A material may include an optional `category` (e.g. "Fabric", "Trims"); the BOM table groups by it when present.
+// The project and each material may include `fields: { [field]: { value, source } }` saying where each value came from.
 
 const stageLabels = {
   'in progress': 'In progress',
@@ -15,39 +18,65 @@ const stageLabels = {
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg']
 
-// Same rule as the backend's missing-BOM count: these fields must be filled in.
+// Same rule as the backend's missing-BOM count (MISSING_BOM_ITEM in projects.py):
+// a line is missing info when any of these is blank, or the yield is 0 or less.
 const REQUIRED_BOM_FIELDS = [
   ['material', 'material'],
   ['supplier', 'supplier'],
+  ['supplier_contact', 'responsible'],
+  ['location', 'placement'],
+  ['material_size', 'size / width'],
   ['color', 'color'],
   ['quantity', 'yield'],
+  ['uom', 'unit'],
 ]
+const REQUIRED_BOM_KEYS = new Set(REQUIRED_BOM_FIELDS.map(([field]) => field))
 
-// Fields a user can edit on a BOM line: [field, label, input type]
-const EDITABLE_FIELDS = [
-  ['name', 'Description'],
-  ['material', 'Material'],
-  ['supplier', 'Supplier'],
-  ['color', 'Color'],
-  ['quantity', 'Yield', 'number'],
-  ['uom', 'Unit'],
-  ['location', 'Placement'],
-  ['material_size', 'Size / width'],
-  ['article_no', 'Article #'],
-  ['supplier_contact', 'Responsible'],
-  ['notes', 'Notes'],
+// Fields a user can edit on a BOM line. Length limits match the backend.
+const BOM_FIELDS = [
+  { name: 'name', label: 'Description', maxLength: 50 },
+  { name: 'material', label: 'Material', maxLength: 100 },
+  { name: 'supplier', label: 'Supplier', maxLength: 100 },
+  { name: 'color', label: 'Color', maxLength: 50 },
+  { name: 'quantity', label: 'Yield', type: 'number' },
+  { name: 'uom', label: 'Unit', maxLength: 10 },
+  { name: 'location', label: 'Placement', maxLength: 1000 },
+  { name: 'material_size', label: 'Size / width', maxLength: 50 },
+  { name: 'article_no', label: 'Article #', maxLength: 100 },
+  { name: 'supplier_contact', label: 'Responsible', maxLength: 255 },
+  { name: 'notes', label: 'Notes', maxLength: 1000 },
+].map((f) => ({ ...f, required: REQUIRED_BOM_KEYS.has(f.name) }))
+
+// Project details a user can edit. None are required; length limits match the backend.
+const PROJECT_FIELDS = [
+  { name: 'customer', label: 'Customer', maxLength: 255 },
+  { name: 'season', label: 'Season', maxLength: 50 },
+  { name: 'project_date', label: 'Date', type: 'date' },
+  { name: 'size_range', label: 'Size range', maxLength: 50 },
+  { name: 'fabric_yarn', label: 'Main fabric', maxLength: 100 },
+  { name: 'designer', label: 'Designer', maxLength: 100 },
+  { name: 'style_no', label: 'Style #', maxLength: 100 },
+  { name: 'po_no', label: 'PO #', maxLength: 100 },
+  { name: 'weight', label: 'Weight', maxLength: 100 },
 ]
-
-function toFormValue(value) {
-  return value === null || value === undefined ? '' : String(value)
-}
 
 function isBlank(value) {
   return value === null || value === undefined || String(value).trim() === ''
 }
 
+function isFieldMissing(material, field) {
+  if (field === 'quantity') return isBlank(material.quantity) || Number(material.quantity) <= 0
+  return isBlank(material[field])
+}
+
+// Field names that still need filling in, e.g. ['supplier', 'uom']
+function missingKeys(material) {
+  return REQUIRED_BOM_FIELDS.filter(([field]) => isFieldMissing(material, field)).map(([field]) => field)
+}
+
+// Readable names of the same fields, e.g. ['supplier', 'unit']
 function missingFields(material) {
-  return REQUIRED_BOM_FIELDS.filter(([field]) => isBlank(material[field])).map(([, label]) => label)
+  return REQUIRED_BOM_FIELDS.filter(([field]) => isFieldMissing(material, field)).map(([, label]) => label)
 }
 
 function isImage(file) {
@@ -58,7 +87,9 @@ function isImage(file) {
 
 function formatDate(value) {
   if (!value) return null
-  const date = new Date(value)
+  // A plain YYYY-MM-DD is a calendar date; reading it as UTC would show the day before in US time zones
+  const plain = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  const date = plain ? new Date(Number(plain[1]), Number(plain[2]) - 1, Number(plain[3])) : new Date(value)
   if (Number.isNaN(date.getTime())) return null
   return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
@@ -75,6 +106,89 @@ function StageBadge({ stage }) {
 
 function Missing() {
   return <span className="missing-text">Missing</span>
+}
+
+// Where a value came from, as sent by the API in `fields[field].source`.
+// kind is "file", "manual", "generated", "unknown" or "missing".
+function sourceOf(entity, field) {
+  return entity.fields?.[field]?.source ?? null
+}
+
+// Real tech pack names run 70+ characters; keep the start and the extension so the label stays on one line
+const MAX_FILE_LABEL = 28
+
+function shortFileName(name) {
+  if (name.length <= MAX_FILE_LABEL) return name
+  return `${name.slice(0, MAX_FILE_LABEL - 10).trimEnd()}…${name.slice(-8).trimStart()}`
+}
+
+function describeSource(source) {
+  if (!source) return null
+  if (source.kind === 'file') {
+    const where = [source.sheet && `sheet ${source.sheet}`, source.row && `row ${source.row}`].filter(Boolean).join(', ')
+    const fullName = source.file_name || 'Uploaded file'
+    return { label: shortFileName(fullName), fullName, where, url: source.url }
+  }
+  if (source.kind === 'manual') return { label: 'Entered by hand' }
+  if (source.kind === 'generated') return { label: 'Set automatically' }
+  // "unknown" and "missing" have nothing useful to show
+  return null
+}
+
+// Text for hover tooltips, e.g. "From BOM.xlsx (sheet BLACK, row 14)"
+function sourceTitle(source) {
+  const info = describeSource(source)
+  if (!info) return undefined
+  if (!info.fullName) return info.label
+  return `From ${info.fullName}${info.where ? ` (${info.where})` : ''}`
+}
+
+// Same source = same kind and same file
+function sourceKey(source) {
+  return source ? `${source.kind}:${source.file_id ?? ''}` : ''
+}
+
+function SourceTag({ source }) {
+  const info = describeSource(source)
+  if (!info) return null
+  const title = sourceTitle(source)
+
+  if (info.url) {
+    return (
+      <a className="source-tag source-file" href={info.url} target="_blank" rel="noreferrer" title={`${title}. Opens the original file.`}>
+        {info.label}
+      </a>
+    )
+  }
+  return <span className="source-tag source-manual" title={title}>{info.label}</span>
+}
+
+// The source most of the filled-in values share, shown once per BOM row or once for the project details.
+// `only` limits it to some fields, e.g. the details the page shows.
+function primarySource(entity, only) {
+  const counts = new Map()
+  for (const [field, entry] of Object.entries(entity.fields ?? {})) {
+    if (only && !only.includes(field)) continue
+    if (isBlank(entry?.value) || !describeSource(entry.source)) continue
+    const key = sourceKey(entry.source)
+    const current = counts.get(key) ?? { source: entry.source, count: 0 }
+    counts.set(key, { ...current, count: current.count + 1 })
+  }
+  let best = null
+  for (const candidate of counts.values()) {
+    if (!best || candidate.count > best.count) best = candidate
+  }
+  return best?.source ?? null
+}
+
+// After a save, the edited fields were typed in by hand
+function markEnteredByHand(fields, changes) {
+  if (!fields) return fields
+  const next = { ...fields }
+  for (const [field, value] of Object.entries(changes)) {
+    next[field] = { value, source: { kind: 'manual' } }
+  }
+  return next
 }
 
 function MissingTotal({ count }) {
@@ -108,6 +222,9 @@ function ProjectHeader({ project, missingTotal }) {
           {project.style_no && <span className="chip">{project.style_no}</span>}
           <StageBadge stage={project.stage} />
           <MissingTotal count={missingTotal} />
+          <Link to={`/projects/${project.id}/missing`} className="secondary-button link-button small-button">
+            View missing items
+          </Link>
         </div>
         {subtitle.length > 0 && <p>{subtitle.join(' · ')}</p>}
       </div>
@@ -166,45 +283,106 @@ function ProjectCompleteness({ colorways }) {
 }
 
 function ProjectSummary({ project, sketches }) {
+// The date input needs YYYY-MM-DD; the API may send a full timestamp
+function dateInputValue(value) {
+  if (isBlank(value)) return ''
+  const match = /^\d{4}-\d{2}-\d{2}/.exec(String(value))
+  return match ? match[0] : ''
+}
+
+function ProjectDetailsForm({ project, onCancel, onSaved }) {
+  const values = { ...project, project_date: dateInputValue(project.project_date) }
+  const missing = PROJECT_FIELDS.filter((f) => isBlank(values[f.name])).map((f) => f.name)
+
+  async function save(changes) {
+    const data = await api(`/projects/${encodeURIComponent(project.id)}`, { method: 'PATCH', body: changes })
+    const saved = data.project ?? { ...project, ...changes }
+    // The save response has no sources, so mark what was just typed in as entered by hand
+    onSaved({ ...saved, fields: markEnteredByHand(project.fields, changes) })
+  }
+
+  return (
+    <EditForm
+      label="Edit project details"
+      idPrefix={`project-${project.id}`}
+      fields={PROJECT_FIELDS}
+      values={values}
+      missing={missing}
+      onSave={save}
+      onCancel={onCancel}
+    />
+  )
+}
+
+function ProjectSummary({ project, sketches, onSaved }) {
+  const [editing, setEditing] = useState(false)
+
+  // [label, value, field name the API uses for its source]
   const details = [
-    ['Customer', project.customer],
-    ['Season', project.season],
-    ['Date', formatDate(project.project_date || project.created_at)],
-    ['Size range', project.size_range],
-    ['Main fabric', project.fabric_yarn],
-    ['Designer', project.designer],
-    ['Style #', project.style_no],
-    ['PO #', project.po_no],
-    ['Weight', project.weight],
+    ['Customer', project.customer, 'customer'],
+    ['Season', project.season, 'season'],
+    ['Date', formatDate(project.project_date || project.created_at), 'project_date'],
+    ['Size range', project.size_range, 'size_range'],
+    ['Main fabric', project.fabric_yarn, 'fabric_yarn'],
+    ['Designer', project.designer, 'designer'],
+    ['Style #', project.style_no, 'style_no'],
+    ['PO #', project.po_no, 'po_no'],
+    ['Weight', project.weight, 'weight'],
   ]
+
+  // When most details came from one file, name it once instead of under every value
+  const main = primarySource(project, details.map(([, , field]) => field))
+  const shared = main?.kind === 'file' ? main : null
 
   return (
     <section className="panel project-summary" aria-label="Project details">
-      <dl className="detail-grid">
-        {details.map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>{isBlank(value) ? '—' : value}</dd>
-          </div>
-        ))}
-      </dl>
+      <div className="summary-details">
+        <div className="summary-head">
+          <h2 className="eyebrow">Details</h2>
+          {!editing && (
+            <button type="button" className="secondary-button small-button" onClick={() => setEditing(true)}>
+              Edit details
+            </button>
+          )}
+        </div>
+        {editing ? (
+          <ProjectDetailsForm
+            project={project}
+            onCancel={() => setEditing(false)}
+            onSaved={(updated) => {
+              onSaved(updated)
+              setEditing(false)
+            }}
+          />
+        ) : (
+          <>
+            {shared && (
+              <p className="summary-source">
+                Details from <SourceTag source={shared} />
+              </p>
+            )}
+            <dl className="detail-grid">
+              {details.map(([label, value, field]) => {
+                const source = sourceOf(project, field)
+                const ownLabel = !isBlank(value) && sourceKey(source) !== sourceKey(shared)
+                return (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd title={isBlank(value) ? undefined : sourceTitle(source)}>
+                      {isBlank(value) ? '—' : value}
+                      {ownLabel && <SourceTag source={source} />}
+                    </dd>
+                  </div>
+                )
+              })}
+            </dl>
+          </>
+        )}
+      </div>
 
       <div className="summary-sketches">
-        <h2 className="eyebrow">Sketches</h2>
-        {sketches.length === 0 ? (
-          <div className="sketch-placeholder">No sketches uploaded yet</div>
-        ) : (
-          <ul className="sketch-grid">
-            {sketches.map((file) => (
-              <li key={file.id}>
-                <a href={file.url} target="_blank" rel="noreferrer">
-                  <img src={file.url} alt={file.file_name} loading="lazy" />
-                  <span>{file.file_name}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
+               <h2 className="eyebrow">Sketches &amp; images{sketches.length > 0 && ` · ${sketches.length}`}</h2>
+        <ImageGallery images={sketches} />
       </div>
     </section>
   )
@@ -233,7 +411,7 @@ function StatCards({ lines }) {
   )
 }
 
-function NeedsAttention({ lines, colorwayName }) {
+function NeedsAttention({ lines, colorwayName, onEdit, editDisabled }) {
   const open = lines.filter((m) => missingFields(m).length > 0)
   if (open.length === 0) return null
 
@@ -251,6 +429,15 @@ function NeedsAttention({ lines, colorwayName }) {
             <div className="attention-owner">
               Responsible: <strong>{isBlank(m.supplier_contact) ? '[Unassigned]' : m.supplier_contact}</strong>
             </div>
+            <button
+              type="button"
+              className="secondary-button small-button"
+              onClick={() => onEdit(m.id)}
+              disabled={editDisabled}
+              aria-label={`Edit missing info for ${m.name || 'unnamed line'}`}
+            >
+              Edit
+            </button>
           </li>
         ))}
       </ul>
@@ -290,33 +477,61 @@ function MissingLabel({ fields }) {
 }
 
 function BomRow({ m, onEdit, editDisabled }) {
+  const { projectId } = useParams()
   const gaps = missingFields(m)
   const isOpen = gaps.length > 0
   const cell = (value) => (isBlank(value) ? <span className="muted-dash">—</span> : value)
   const required = (value) => (isBlank(value) ? <Missing /> : value)
-  // Highlights the cell itself when a required value is empty
-  const requiredCell = (field) => (isBlank(m[field]) ? 'cell-missing' : undefined)
+  // Highlights the cell itself when a required value is empty (yield shares its cell with the unit)
+  const requiredCell = (...fields) => (fields.some((f) => isFieldMissing(m, f)) ? 'cell-missing' : undefined)
+
+  // The row shows its main source once; a value only gets its own label when it came from somewhere else
+  const rowSource = primarySource(m)
+  const tip = (field) => (isBlank(m[field]) ? undefined : sourceTitle(sourceOf(m, field)))
+  const ownSource = (field) => {
+    const source = sourceOf(m, field)
+    if (isBlank(m[field]) || sourceKey(source) === sourceKey(rowSource)) return null
+    return <SourceTag source={source} />
+  }
 
   return (
     <tr className={isOpen ? 'row-open' : undefined}>
       <td>
         <div className="row-title">
-          {m.name || 'Unnamed line'}
+           <Link to={`/projects/${projectId}/parts/${m.id}`} title={tip('name')} className="row-title">
+            {m.name || 'Unnamed line'}
+          </Link>
           {' · '}
-          {required(m.material)}
+          <span title={tip('material')}>{required(m.material)}</span>
         </div>
-        {!isBlank(m.article_no) && <div className="row-subtitle mono">{m.article_no}</div>}
+        {!isBlank(m.article_no) && <div className="row-subtitle mono" title={tip('article_no')}>{m.article_no}</div>}
+        {rowSource && <SourceTag source={rowSource} />}
+        {ownSource('material')}
         {isOpen && <MissingLabel fields={gaps} />}
       </td>
-      <td className={requiredCell('supplier')}>{required(m.supplier)}</td>
-      <td className={requiredCell('color')}>{required(m.color)}</td>
-      <td className="wrap-cell">{cell(m.location)}</td>
-      <td>{cell(m.material_size)}</td>
-      <td>{isBlank(m.supplier_contact) ? <Missing /> : m.supplier_contact}</td>
-      <td className={['mono', requiredCell('quantity')].filter(Boolean).join(' ')}>
-        {isBlank(m.quantity) ? <Missing /> : `${m.quantity} ${m.uom || ''}`.trim()}
+      <td className={requiredCell('supplier')} title={tip('supplier')}>{required(m.supplier)}{ownSource('supplier')}</td>
+      <td className={requiredCell('color')} title={tip('color')}>{required(m.color)}{ownSource('color')}</td>
+      <td className={['wrap-cell', requiredCell('location')].filter(Boolean).join(' ')} title={tip('location')}>
+        {required(m.location)}{ownSource('location')}
       </td>
-      <td className="wrap-cell">{cell(m.notes)}</td>
+      <td className={requiredCell('material_size')} title={tip('material_size')}>
+        {required(m.material_size)}{ownSource('material_size')}
+      </td>
+      <td className={requiredCell('supplier_contact')} title={tip('supplier_contact')}>
+        {required(m.supplier_contact)}
+        {ownSource('supplier_contact')}
+      </td>
+      <td className={['mono', requiredCell('quantity', 'uom')].filter(Boolean).join(' ')} title={tip('quantity')}>
+        {isBlank(m.quantity) ? (
+          <Missing />
+        ) : isBlank(m.uom) ? (
+          <>{m.quantity} <span className="missing-text">no unit</span></>
+        ) : (
+          `${m.quantity} ${m.uom}`
+        )}
+        {ownSource('quantity')}
+      </td>
+      <td className="wrap-cell" title={tip('notes')}>{cell(m.notes)}{ownSource('notes')}</td>
       <td className="actions">
         <button
           type="button"
@@ -333,88 +548,25 @@ function BomRow({ m, onEdit, editDisabled }) {
 }
 
 function BomEditRow({ m, onCancel, onSaved }) {
-  const [form, setForm] = useState(() =>
-    Object.fromEntries(EDITABLE_FIELDS.map(([field]) => [field, toFormValue(m[field])]))
-  )
-  const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  function update(field) {
-    return (e) => setForm({ ...form, [field]: e.target.value })
+  async function save(changes) {
+    const data = await api(`/materials/${encodeURIComponent(m.id)}`, { method: 'PATCH', body: changes })
+    const saved = data.material ?? { ...m, ...changes }
+    // The save response has no sources, so mark what was just typed in as entered by hand
+    onSaved({ ...saved, fields: markEnteredByHand(m.fields, changes) })
   }
-
-  async function handleSave(e) {
-    e.preventDefault()
-
-    // Only send fields that actually changed; blank means "clear it"
-    const changes = {}
-    for (const [field] of EDITABLE_FIELDS) {
-      const value = form[field].trim()
-      if (value !== toFormValue(m[field]).trim()) changes[field] = value === '' ? null : value
-    }
-
-    if ('quantity' in changes && changes.quantity !== null) {
-      const qty = Number(changes.quantity)
-      if (!Number.isFinite(qty) || qty < 0) {
-        setError('Yield must be a number of 0 or more.')
-        return
-      }
-      changes.quantity = qty
-    }
-
-    if (Object.keys(changes).length === 0) {
-      onCancel()
-      return
-    }
-
-    setError('')
-    setSaving(true)
-    try {
-      const data = await api(`/materials/${encodeURIComponent(m.id)}`, { method: 'PATCH', body: changes })
-      onSaved(data.material ?? { ...m, ...changes })
-    } catch (err) {
-      setError(err.message)
-      setSaving(false)
-    }
-  }
-
-  const label = `Edit ${m.name || 'line'}`
 
   return (
     <tr className="edit-row">
       <td colSpan={9}>
-        <form
-          className="bom-edit-form"
-          aria-label={label}
-          onSubmit={handleSave}
-          onKeyDown={(e) => e.key === 'Escape' && onCancel()}
-          noValidate
-        >
-          {error && <div className="alert alert-error" role="alert">{error}</div>}
-          <div className="bom-edit-grid">
-            {EDITABLE_FIELDS.map(([field, fieldLabel, type]) => (
-              <div className="field" key={field}>
-                <label htmlFor={`edit-${m.id}-${field}`}>{fieldLabel}</label>
-                <input
-                  id={`edit-${m.id}-${field}`}
-                  type={type === 'number' ? 'number' : 'text'}
-                  step={type === 'number' ? 'any' : undefined}
-                  min={type === 'number' ? 0 : undefined}
-                  value={form[field]}
-                  onChange={update(field)}
-                />
-              </div>
-            ))}
-          </div>
-          <div className="bom-edit-actions">
-            <button type="submit" className="primary-button" disabled={saving}>
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-            <button type="button" className="secondary-button" onClick={onCancel} disabled={saving}>
-              Cancel
-            </button>
-          </div>
-        </form>
+        <EditForm
+          label={`Edit ${m.name || 'line'}`}
+          idPrefix={`edit-${m.id}`}
+          fields={BOM_FIELDS}
+          values={m}
+          missing={missingKeys(m)}
+          onSave={save}
+          onCancel={onCancel}
+        />
       </td>
     </tr>
   )
@@ -448,7 +600,12 @@ function BomTab({ colorways, onMaterialSaved }) {
       </div>
 
       <StatCards lines={lines} />
-      <NeedsAttention lines={lines} colorwayName={selected.name} />
+      <NeedsAttention
+        lines={lines}
+        colorwayName={selected.name}
+        onEdit={(id) => setEditingId(id)}
+        editDisabled={editingId !== null}
+      />
 
       <section className="panel panel-flush" aria-label={`BOM lines for ${selected.name}`}>
         {visible.length === 0 ? (
@@ -569,6 +726,10 @@ function ProjectView({ projectId }) {
     }))
   }
 
+  function handleProjectSaved(updated) {
+    setData((prev) => ({ ...prev, project: { ...prev.project, ...updated } }))
+  }
+
   if (error) {
     const notFound = error.status === 404
     return (
@@ -611,9 +772,9 @@ function ProjectView({ projectId }) {
   return (
     <>
       <ProjectHeader project={project} missingTotal={missingTotal} />
-      <ProjectSummary project={project} sketches={sketches} />
+      <ProjectSummary project={project} sketches={sketches} onSaved={handleProjectSaved} />
       <ProjectCompleteness colorways={colorways} />
-
+      
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="tab-panel">
         {tab === 'bom' ? <BomTab colorways={colorways} onMaterialSaved={handleMaterialSaved} /> : <FilesTab files={files} />}

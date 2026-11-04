@@ -130,7 +130,9 @@ a { color: var(--accent); }
 .inline-form .primary-button { margin-top: 0; padding: 0 18px; }
 
 /* Tables */
-.table-wrap { overflow-x: auto; }
+/* position: relative keeps absolutely positioned children (the hidden "Actions" header) inside the scroll box,
+   otherwise a wide table makes the whole page scroll sideways on phones */
+.table-wrap { position: relative; overflow-x: auto; }
 .data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .data-table th, .data-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); }
 .data-table th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
@@ -272,6 +274,23 @@ a { color: var(--accent); }
 .file-list li:last-child { border-bottom: 0; }
 .file-list a { overflow-wrap: anywhere; }
 
+/* Value sources (RAMP-136): kept small so the BOM stays easy to read */
+.source-tag {
+  display: block; width: fit-content; max-width: 100%; margin-top: 3px;
+  font-size: 11px; font-weight: 400; line-height: 1.3; color: var(--muted);
+  /* One line; the full file name is in the tooltip */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+a.source-tag { text-decoration: underline dotted; text-underline-offset: 2px; }
+a.source-tag:hover { color: var(--accent); text-decoration-style: solid; }
+.source-file::before { content: "\2197\00a0"; }
+.source-manual { font-style: italic; }
+.detail-grid dd .source-tag { margin-top: 2px; }
+/* The file most details came from, named once above the details */
+.summary-details { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.summary-source { margin: 0; font-size: 12px; color: var(--muted); }
+.summary-source .source-tag { display: inline; margin: 0; font-size: 12px; }
+
 @media (max-width: 700px) {
   .project-summary { grid-template-columns: 1fr; }
   .app-nav { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line); }
@@ -282,10 +301,25 @@ a { color: var(--accent); }
  
 .small-button { min-height: 36px; padding: 0 10px; font-size: 13px; }
 .edit-row td { background: var(--rail); }
-.bom-edit-form { display: flex; flex-direction: column; gap: 12px; }
-.bom-edit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
-.bom-edit-actions { display: flex; gap: 8px; }
-.bom-edit-actions .primary-button { margin-top: 0; padding: 0 18px; }
+
+/* Edit forms for BOM lines and project details (RAMP-134) */
+.edit-form { display: flex; flex-direction: column; gap: 12px; }
+.edit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+.edit-actions { display: flex; gap: 8px; }
+.edit-actions .primary-button { margin-top: 0; padding: 0 18px; }
+.form-hint { margin: 0; font-size: 13px; color: #8a1c1c; }
+.field-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.field-flag {
+  padding: 0 6px; border: 1px solid #e3a5a5; border-radius: 999px;
+  background: #fbeaea; color: #8a1c1c; font-size: 11px; font-weight: 600; line-height: 18px;
+}
+.field-missing input { border-color: #d27a7a; background: #fff8f8; }
+.field-invalid input { border: 2px solid #a12020; }
+.field-error { font-size: 12px; color: #a12020; }
+
+/* Project details header with its Edit button */
+.summary-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; }
+.summary-head h2 { margin: 0; }
 
 /* Missing info highlights */
 .bom-table .row-open td.cell-missing { background: #fbeaea; }
@@ -301,3 +335,51 @@ a { color: var(--accent); }
 .progress.level-low div { background: #a12020; }
 .percent { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stat-good { color: #1d5e2c; }
+/* Projects search and filters*/
+.filter-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.filter-bar .field { flex: 1 1 160px; }
+.filter-bar .filter-search { flex: 2 1 260px; }
+.filter-bar .secondary-button { min-height: 40px; }
+.result-count { margin: 0; font-size: 13px; color: var(--muted); }
+
+/* Image gallery thumbnails and full-size viewer */
+.sketch-grid .thumb {
+  display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 0; cursor: zoom-in;
+  background: none; border: 0; color: var(--muted); font: inherit; font-size: 12px; text-align: left;
+}
+.sketch-grid .thumb span { overflow-wrap: anywhere; }
+.sketch-grid .thumb:hover img { border-color: var(--ink-soft); }
+.image-fallback {
+  display: grid; place-items: center; align-content: center; gap: 4px; width: 100%; aspect-ratio: 3 / 4;
+  background: var(--ground); border: 1.5px dashed #a3a39c; border-radius: 6px; color: var(--muted); font-size: 12px;
+}
+.image-fallback-large { aspect-ratio: auto; min-height: 50vh; font-size: 14px; }
+.viewer-backdrop {
+  position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px;
+  background: rgba(20, 20, 18, 0.82);
+}
+.viewer {
+  display: flex; flex-direction: column; width: min(1100px, 100%); max-height: 100%;
+  background: var(--panel); border-radius: 8px; overflow: hidden;
+}
+.viewer-bar { display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--line); }
+.viewer-title { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewer-count { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.viewer-link { font-size: 13px; }
+.viewer-close, .viewer-nav {
+  display: grid; place-items: center; width: 44px; height: 44px; cursor: pointer;
+  background: var(--panel); color: var(--ink); border: 1px solid #bdbdb6; border-radius: 999px; font: inherit; font-size: 26px; line-height: 1;
+}
+.viewer-close:hover, .viewer-nav:hover { background: var(--rail); }
+.viewer-stage { position: relative; display: grid; place-items: center; padding: 16px 64px; background: var(--ground); min-height: 50vh; }
+.viewer-image { display: block; max-width: 100%; max-height: 75vh; object-fit: contain; }
+.viewer-nav { position: absolute; top: 50%; transform: translateY(-50%); }
+.viewer-prev { left: 12px; }
+.viewer-next { right: 12px; }
+@media (max-width: 700px) {
+  .viewer-stage { padding: 12px 8px 64px; }
+  .viewer-nav { top: auto; bottom: 10px; transform: none; }
+}
+/* Part detail: missing fields stand out */
+.detail-grid .detail-missing { padding: 6px 8px; margin: -6px -8px; border-radius: 6px; background: #fbeaea; }
+.form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
