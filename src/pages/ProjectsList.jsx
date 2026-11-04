@@ -20,6 +20,39 @@ function StageBadge({ stage }) {
   return <span className={`badge stage-${key}`}>{stageLabels[stage] || stage || '—'}</span>
 }
 
+// Percent of BOM lines with every required field filled in (from the API, or worked out from the counts)
+function percentComplete(p) {
+  if (typeof p.percent_complete === 'number') return p.percent_complete
+  if (!p.total_bom_lines) return 0
+  return Math.round(((p.total_bom_lines - (p.missing_bom_items || 0)) / p.total_bom_lines) * 100)
+}
+
+function progressLevel(percent) {
+  if (percent >= 100) return 'complete'
+  if (percent >= 50) return 'partial'
+  return 'low'
+}
+
+function BomProgress({ project }) {
+  if (!project.total_bom_lines) return <span className="muted">No BOM yet</span>
+  const percent = percentComplete(project)
+  return (
+    <div className="progress-cell">
+      <div
+        className={`progress level-${progressLevel(percent)}`}
+        role="progressbar"
+        aria-valuenow={percent}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`${project.name} BOM complete`}
+      >
+        <div style={{ width: `${percent}%` }} />
+      </div>
+      <span className="percent">{percent}%</span>
+    </div>
+  )
+}
+
 function MissingCount({ count }) {
   if (!count) return <span className="badge badge-ok">None</span>
   return <span className="badge badge-warn">{count} missing</span>
@@ -137,7 +170,7 @@ export default function ProjectsList() {
 
   let content
   if (loading) {
-    content = <p className="muted">Loading projects…</p>
+        content = <p className="muted" role="status">Loading projects…</p>
   } else if (error) {
     content = <div className="alert alert-error" role="alert">{error}</div>
   } else if (projects.length === 0) {
@@ -167,6 +200,7 @@ export default function ProjectsList() {
                 <th scope="col">Customer / division</th>
                 <th scope="col">Style #</th>
                 <th scope="col">Stage</th>
+                <th scope="col">BOM complete</th>
                 <th scope="col">Created</th>
                 <th scope="col">Missing BOM items</th>
               </tr>
@@ -184,6 +218,7 @@ export default function ProjectsList() {
                   <td>{p.customer || '—'}</td>
                   <td>{p.style_no || '—'}</td>
                   <td><StageBadge stage={p.stage} /></td>
+                  <td><BomProgress project={p} /></td>
                   <td>{formatDate(p.created_at)}</td>
                   <td><MissingCount count={p.missing_bom_items} /></td>
                 </tr>

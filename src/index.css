@@ -328,6 +328,13 @@ a.source-tag:hover { color: var(--accent); text-decoration-style: solid; }
 .missing-list { display: block; margin-top: 4px; font-size: 12px; color: #8a1c1c; }
 
 
+/* Project progress (projects list + overview) */
+.progress-cell { display: flex; align-items: center; gap: 8px; min-width: 140px; }
+.progress-cell .progress { flex: 1; }
+.progress.level-partial div { background: #c98a00; }
+.progress.level-low div { background: #a12020; }
+.percent { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stat-good { color: #1d5e2c; }
 /* Projects search and filters*/
 .filter-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
 .filter-bar .field { flex: 1 1 160px; }
