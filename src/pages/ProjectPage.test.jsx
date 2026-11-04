@@ -205,3 +205,43 @@ test('an edited value is labelled as entered by hand', async () => {
   expect(cell).toHaveTextContent('Entered by hand')
   expect(cell).toHaveAttribute('title', 'Entered by hand')
 })
+
+// Found testing with the real sample files (RAMP-130): long file names flooded the page
+const longName = "DW11038_M's Snowcrest_Shirt Jac_ REV2 BTUSA PO 1654 07.10.2026 (2).xlsx"
+const longFile = { ...bomFile, file_name: longName }
+
+test('project details name their file once and keep long file names short', async () => {
+  const fields = Object.fromEntries(
+    ['customer', 'style_no', 'po_no'].map((f) => [f, { value: 'x', source: { ...longFile, row: 4 } }])
+  )
+  fields.season = { value: 'SS27', source: byHand }
+  api.mockResolvedValue({
+    ...projectData,
+    project: { ...projectData.project, po_no: '1654', fields },
+  })
+  renderPage()
+
+  const details = await screen.findByRole('region', { name: 'Project details' })
+  // One link for the whole panel, with a short label and the full name on hover
+  const links = within(details).getAllByRole('link', { name: /DW11038/ })
+  expect(links).toHaveLength(1)
+  expect(links[0]).toHaveTextContent("DW11038_M's Snowcr…(2).xlsx")
+  expect(links[0]).toHaveAttribute('title', `From ${longName} (sheet NAVY, row 4). Opens the original file.`)
+  expect(within(details).getByText(/Details from/)).toBeInTheDocument()
+
+  // A value from somewhere else still gets its own label
+  expect(within(details).getByText('SS27').closest('dd')).toHaveTextContent('Entered by hand')
+  // Hovering a value still shows its exact source
+  expect(within(details).getByText('Acme').closest('dd')).toHaveAttribute('title', `From ${longName} (sheet NAVY, row 4)`)
+})
+
+test('BOM rows shorten long file names too', async () => {
+  const line = { ...fullLine, fields: { name: { value: 'Shell', source: longFile }, supplier: { value: 'YKK', source: longFile } } }
+  api.mockResolvedValue({ ...projectData, colorways: [{ id: 'c1', name: 'Navy', materials: [line] }] })
+  renderPage()
+
+  const bom = await screen.findByRole('region', { name: 'BOM lines for Navy' })
+  const link = within(bom).getByRole('link', { name: /DW11038/ })
+  expect(link.textContent.length).toBeLessThanOrEqual(28)
+  expect(link).toHaveAttribute('title', expect.stringContaining(longName))
+})

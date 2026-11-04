@@ -84,11 +84,20 @@ function sourceOf(entity, field) {
   return entity.fields?.[field]?.source ?? null
 }
 
+// Real tech pack names run 70+ characters; keep the start and the extension so the label stays on one line
+const MAX_FILE_LABEL = 28
+
+function shortFileName(name) {
+  if (name.length <= MAX_FILE_LABEL) return name
+  return `${name.slice(0, MAX_FILE_LABEL - 10).trimEnd()}…${name.slice(-8).trimStart()}`
+}
+
 function describeSource(source) {
   if (!source) return null
   if (source.kind === 'file') {
     const where = [source.sheet && `sheet ${source.sheet}`, source.row && `row ${source.row}`].filter(Boolean).join(', ')
-    return { label: source.file_name || 'Uploaded file', where, url: source.url }
+    const fullName = source.file_name || 'Uploaded file'
+    return { label: shortFileName(fullName), fullName, where, url: source.url }
   }
   if (source.kind === 'manual') return { label: 'Entered by hand' }
   if (source.kind === 'generated') return { label: 'Set automatically' }
@@ -100,8 +109,8 @@ function describeSource(source) {
 function sourceTitle(source) {
   const info = describeSource(source)
   if (!info) return undefined
-  if (!info.url && !source.file_name) return info.label
-  return `From ${info.label}${info.where ? ` (${info.where})` : ''}`
+  if (!info.fullName) return info.label
+  return `From ${info.fullName}${info.where ? ` (${info.where})` : ''}`
 }
 
 // Same source = same kind and same file
@@ -124,10 +133,12 @@ function SourceTag({ source }) {
   return <span className="source-tag source-manual" title={title}>{info.label}</span>
 }
 
-// The source most of a BOM line's filled-in values share, shown once per row
-function primarySource(m) {
+// The source most of the filled-in values share, shown once per BOM row or once for the project details.
+// `only` limits it to some fields, e.g. the details the page shows.
+function primarySource(entity, only) {
   const counts = new Map()
-  for (const entry of Object.values(m.fields ?? {})) {
+  for (const [field, entry] of Object.entries(entity.fields ?? {})) {
+    if (only && !only.includes(field)) continue
     if (isBlank(entry?.value) || !describeSource(entry.source)) continue
     const key = sourceKey(entry.source)
     const current = counts.get(key) ?? { source: entry.source, count: 0 }
@@ -202,19 +213,34 @@ function ProjectSummary({ project, sketches }) {
     ['Weight', project.weight, 'weight'],
   ]
 
+  // When most details came from one file, name it once instead of under every value
+  const main = primarySource(project, details.map(([, , field]) => field))
+  const shared = main?.kind === 'file' ? main : null
+
   return (
     <section className="panel project-summary" aria-label="Project details">
-      <dl className="detail-grid">
-        {details.map(([label, value, field]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>
-              {isBlank(value) ? '—' : value}
-              {!isBlank(value) && <SourceTag source={sourceOf(project, field)} />}
-            </dd>
-          </div>
-        ))}
-      </dl>
+      <div className="summary-details">
+        {shared && (
+          <p className="summary-source">
+            Details from <SourceTag source={shared} />
+          </p>
+        )}
+        <dl className="detail-grid">
+          {details.map(([label, value, field]) => {
+            const source = sourceOf(project, field)
+            const ownLabel = !isBlank(value) && sourceKey(source) !== sourceKey(shared)
+            return (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd title={isBlank(value) ? undefined : sourceTitle(source)}>
+                  {isBlank(value) ? '—' : value}
+                  {ownLabel && <SourceTag source={source} />}
+                </dd>
+              </div>
+            )
+          })}
+        </dl>
+      </div>
 
       <div className="summary-sketches">
         <h2 className="eyebrow">Sketches</h2>
