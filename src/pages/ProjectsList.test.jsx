@@ -123,3 +123,20 @@ test('shows the server error if the list fails to load', async () => {
 
   expect(await screen.findByRole('alert')).toHaveTextContent("Can't reach the server")
 })
+
+// RAMP-128: the list works the percent out from the counts, the same way the project page does,
+// rounding like the API except it never shows 100% while a line is still missing
+test('percent comes from the line counts, rounded down', async () => {
+  api.mockResolvedValue({ projects: [
+    // The API rounds 12.5 to 12 (shown as is) and 99.5 to 100 (shown as 99%)
+    { id: 1, name: 'Eight Lines', stage: 'in progress', total_bom_lines: 8, missing_bom_items: 7, percent_complete: 12 },
+    { id: 2, name: 'Almost Done', stage: 'in progress', total_bom_lines: 200, missing_bom_items: 1, percent_complete: 100 },
+  ] })
+  renderList()
+
+  const row = async (name) => (await screen.findByRole('link', { name })).closest('tr')
+  expect(within(await row('Eight Lines')).getByText('12%')).toBeInTheDocument()
+  // One line still missing, so not 100%
+  expect(within(await row('Almost Done')).getByText('99%')).toBeInTheDocument()
+  expect(within(await row('Almost Done')).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '99')
+})

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api.js'
+import { percentComplete } from './bomFields.js'
 
 const stageLabels = {
   'in progress': 'In progress',
@@ -20,13 +21,6 @@ function StageBadge({ stage }) {
   return <span className={`badge stage-${key}`}>{stageLabels[stage] || stage || '—'}</span>
 }
 
-// Percent of BOM lines with every required field filled in (from the API, or worked out from the counts)
-function percentComplete(p) {
-  if (typeof p.percent_complete === 'number') return p.percent_complete
-  if (!p.total_bom_lines) return 0
-  return Math.round(((p.total_bom_lines - (p.missing_bom_items || 0)) / p.total_bom_lines) * 100)
-}
-
 function progressLevel(percent) {
   if (percent >= 100) return 'complete'
   if (percent >= 50) return 'partial'
@@ -35,7 +29,8 @@ function progressLevel(percent) {
 
 function BomProgress({ project }) {
   if (!project.total_bom_lines) return <span className="muted">No BOM yet</span>
-  const percent = percentComplete(project)
+  // Worked out from the counts so it matches the project page (see percentComplete)
+  const percent = percentComplete(project.total_bom_lines, project.missing_bom_items)
   return (
     <div className="progress-cell">
       <div

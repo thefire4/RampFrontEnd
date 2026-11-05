@@ -78,3 +78,13 @@ test('shows a loading message while the project loads', async () => {
   renderPage()
   expect(screen.getByRole('status')).toHaveTextContent('Loading project…')
 })
+// RAMP-128: same rounding as the API and the projects list (1 of 8 complete is 12%, not 13%)
+test('overview percent rounds like the API and the projects list', async () => {
+  const lines = [complete, ...Array.from({ length: 7 }, (_, i) => ({ ...noSupplier, id: 100 + i }))]
+  api.mockResolvedValue(overviewData([{ id: 'c1', name: 'Navy', materials: lines }]))
+  renderPage()
+
+  const overview = await screen.findByRole('region', { name: 'BOM completeness' })
+  expect(within(overview).getByText('12% complete')).toBeInTheDocument()
+  expect(within(overview).getByRole('progressbar', { name: 'Project BOM complete' })).toHaveAttribute('aria-valuenow', '12')
+})
