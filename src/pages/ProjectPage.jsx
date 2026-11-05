@@ -40,7 +40,7 @@ const BOM_FIELDS = [
   { name: 'supplier', label: 'Supplier', maxLength: 100 },
   { name: 'color', label: 'Color', maxLength: 50 },
   { name: 'quantity', label: 'Yield', type: 'number' },
-  { name: 'uom', label: 'Unit', maxLength: 10 },
+  { name: 'uom', label: 'Unit', maxLength: 50 },
   { name: 'location', label: 'Placement', maxLength: 1000 },
   { name: 'material_size', label: 'Size / width', maxLength: 50 },
   { name: 'article_no', label: 'Article #', maxLength: 100 },

@@ -419,3 +419,12 @@ test('BOM rows shorten long file names too', async () => {
   expect(link.textContent.length).toBeLessThanOrEqual(28)
   expect(link).toHaveAttribute('title', expect.stringContaining(longName))
 })
+
+// RAMP-128: matches the backend's Unit limit (widened to 50 characters in RAMP-127)
+test('the unit field allows up to 50 characters', async () => {
+  api.mockResolvedValue(projectData)
+  renderPage()
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit Shell' }))
+  expect(screen.getByLabelText('Unit')).toHaveAttribute('maxLength', '50')
+})
