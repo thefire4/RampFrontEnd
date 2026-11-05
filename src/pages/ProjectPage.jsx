@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom'
 import { api } from '../api.js'
 import EditForm from '../components/EditForm.jsx'
 import ImageGallery from '../components/ImageGallery.jsx'
+import UploadList from '../components/UploadList.jsx'
+import { ACCEPT_ATTRIBUTE, ACCEPTED_DESCRIPTION, friendlyUploadError, toUploadItems } from '../components/uploads.js'
 
 // Follows the Sprint 1 project page wireframe.
 // Expects GET /api/projects/:id to return
@@ -661,21 +663,91 @@ function BomTab({ colorways, onMaterialSaved }) {
   )
 }
 
-function FilesTab({ files }) {
-  if (files.length === 0) return <p className="muted">No files uploaded yet.</p>
+// RAMP-132: add files to the project from the Files tab.
+// Each file is checked when chosen, uploads one at a time, and says why if it fails;
+// the rest of the page keeps working and a failed file can be tried again.
+function FileUploader({ projectId, onUploaded }) {
+  const [items, setItems] = useState([])
+  const [busy, setBusy] = useState(false)
+
+  function setStatus(key, status, message = null) {
+    setItems((prev) => prev.map((item) => (item.key === key ? { ...item, status, message } : item)))
+  }
+
+  async function upload(toUpload) {
+    setBusy(true)
+    let uploaded = 0
+    for (const item of toUpload) {
+      setStatus(item.key, 'uploading')
+      try {
+        const form = new FormData()
+        form.append('file', item.file)
+        await api(`/projects/${encodeURIComponent(projectId)}/import`, { method: 'POST', body: form })
+        setStatus(item.key, 'done')
+        uploaded += 1
+      } catch (err) {
+        setStatus(item.key, 'failed', friendlyUploadError(err.message))
+      }
+    }
+    setBusy(false)
+    // New files can add BOM lines and details, so reload the project once
+    if (uploaded > 0) onUploaded()
+  }
+
+  function handleChoose(e) {
+    const added = toUploadItems(e.target.files)
+    // Clear the input so the same file can be chosen again after fixing it
+    e.target.value = ''
+    if (added.length === 0) return
+    setItems((prev) => [...prev, ...added])
+    const valid = added.filter((i) => i.status === 'waiting')
+    if (valid.length) upload(valid)
+  }
 
   return (
+    <div className="file-uploader">
+      <div className="field">
+        <label htmlFor={`upload-${projectId}`}>Upload files</label>
+        <input
+          id={`upload-${projectId}`}
+          type="file"
+          multiple
+          accept={ACCEPT_ATTRIBUTE}
+          onChange={handleChoose}
+          disabled={busy}
+          aria-describedby={`upload-${projectId}-hint`}
+        />
+        <p className="field-hint" id={`upload-${projectId}-hint`}>{ACCEPTED_DESCRIPTION}</p>
+      </div>
+      <UploadList
+        items={items}
+        label="Uploads"
+        busy={busy}
+        onRetry={(item) => upload([item])}
+        onRemove={(item) => setItems((prev) => prev.filter((i) => i.key !== item.key))}
+      />
+    </div>
+  )
+}
+
+function FilesTab({ files, projectId, onUploaded }) {
+  return (
     <section className="panel" aria-label="Files">
-      <ul className="file-list">
-        {files.map((file) => (
-          <li key={file.id}>
-            <a href={file.url} target="_blank" rel="noreferrer">{file.file_name}</a>
-            <span className="muted">
-              {[isImage(file) ? 'Sketch' : file.file_type, formatDate(file.created_at)].filter(Boolean).join(' · ')}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <FileUploader projectId={projectId} onUploaded={onUploaded} />
+      {files.length === 0 ? (
+        <p className="muted">No files uploaded yet.</p>
+      ) : (
+        <ul className="file-list">
+          {files.map((file) => (
+            <li key={file.id}>
+              <a href={file.url} target="_blank" rel="noreferrer">{file.file_name}</a>
+              <span className="muted">
+                {[isImage(file) ? 'Sketch' : file.file_type, formatDate(file.created_at)].filter(Boolean).join(' · ')}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }
@@ -704,14 +776,19 @@ function ProjectView({ projectId }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [tab, setTab] = useState('bom')
+  // Bumped after an upload so the project reloads with the new file's details and BOM lines
+  const [reloads, setReloads] = useState(0)
 
   useEffect(() => {
     let cancelled = false
     api(`/projects/${encodeURIComponent(projectId)}`)
       .then((result) => { if (!cancelled) setData(result) })
-      .catch((err) => { if (!cancelled) setError(err) })
+      .catch((err) => {
+        // A failed reload keeps showing what's already on the page
+        if (!cancelled && reloads === 0) setError(err)
+      })
     return () => { cancelled = true }
-  }, [projectId])
+  }, [projectId, reloads])
 
   // Swap the saved line into state; stats, flags and Needs attention recalculate from it
   function handleMaterialSaved(colorwayId, updated) {
@@ -776,7 +853,7 @@ function ProjectView({ projectId }) {
 
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="tab-panel">
-        {tab === 'bom' ? <BomTab colorways={colorways} onMaterialSaved={handleMaterialSaved} /> : <FilesTab files={files} />}
+        {tab === 'bom' ? <BomTab colorways={colorways} onMaterialSaved={handleMaterialSaved} /> : <FilesTab files={files} projectId={project.id ?? projectId} onUploaded={() => setReloads((n) => n + 1)} />}
       </div>
     </>
   )

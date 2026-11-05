@@ -76,3 +76,29 @@ test('network failure becomes ApiError with status 0', async () => {
   fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'))
   await expect(api('/projects')).rejects.toMatchObject({ status: 0 })
 })
+// RAMP-132: file uploads
+test('FormData is sent as is, without a JSON Content-Type', async () => {
+  fetchMock
+    .mockResolvedValueOnce(res(200, { csrf_token: 'tok' }))
+    .mockResolvedValueOnce(res(201, { project_id: 5 }))
+  const form = new FormData()
+  form.append('file', new File(['a,b'], 'bom.csv', { type: 'text/csv' }))
+
+  const data = await api('/projects/import', { method: 'POST', body: form })
+
+  expect(data).toEqual({ project_id: 5 })
+  const [url, opts] = fetchMock.mock.calls[1]
+  expect(url).toBe('/api/projects/import')
+  expect(opts.body).toBe(form)
+  expect(opts.headers['Content-Type']).toBeUndefined()
+  expect(opts.headers['X-CSRFToken']).toBe('tok')
+})
+
+test('a 413 without a JSON message still says the file is too large', async () => {
+  fetchMock
+    .mockResolvedValueOnce(res(200, { csrf_token: 'tok' }))
+    .mockResolvedValueOnce({ ok: false, status: 413, json: async () => { throw new Error('not json') } })
+
+  await expect(api('/projects/import', { method: 'POST', body: new FormData() }))
+    .rejects.toMatchObject({ status: 413, message: 'That file is too large to upload.' })
+})

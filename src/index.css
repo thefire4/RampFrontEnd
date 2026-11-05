@@ -383,3 +383,29 @@ a.source-tag:hover { color: var(--accent); text-decoration-style: solid; }
 /* Part detail: missing fields stand out */
 .detail-grid .detail-missing { padding: 6px 8px; margin: -6px -8px; border-radius: 6px; background: #fbeaea; }
 .form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* File uploads (RAMP-132) */
+.field-hint { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+.upload-card { max-width: 560px; }
+.file-uploader { display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.file-uploader .field { flex: none; }
+.file-uploader .field-hint { margin: 0; }
+.upload-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.upload-item {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); font-size: 14px;
+}
+.upload-invalid, .upload-failed { border-color: #e3a5a5; background: #fdf6f6; }
+.upload-file { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; }
+.upload-name { font-weight: 600; overflow-wrap: anywhere; }
+.upload-status { font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.upload-done .upload-status { color: #1d5e2c; }
+.upload-status-bad { color: #a12020; }
+.upload-message { grid-column: 1 / -1; margin: 0; font-size: 13px; color: #8a1c1c; overflow-wrap: anywhere; }
+.upload-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.upload-actions:empty { display: none; }
+.link-like {
+  padding: 0 4px; border: 0; background: none; color: var(--accent); cursor: pointer;
+  font: inherit; font-size: 13px; text-decoration: underline;
+}
+.link-like:disabled { color: var(--muted); cursor: default; }
