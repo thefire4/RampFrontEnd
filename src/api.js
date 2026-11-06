@@ -23,6 +23,7 @@ function fallbackMessage(status) {
   if (status === 401) return 'Your session has ended. Please sign in again.'
   if (status === 403) return "You don't have permission to do that."
   if (status === 404) return 'Not found.'
+  if (status === 413) return 'That file is too large to upload.'
   if (status >= 500) return 'Something went wrong on the server. Please try again.'
   return 'Something went wrong. Please try again.'
 }
@@ -47,16 +48,19 @@ async function getCsrfToken(refresh = false) {
 export async function api(path, { method = 'GET', body } = {}) {
   const isWrite = method !== 'GET'
 
+  // File uploads send FormData as is; the browser sets the multipart Content-Type and boundary
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData
+
   async function attempt(refreshToken) {
     const headers = { Accept: 'application/json' }
-    if (body !== undefined) headers['Content-Type'] = 'application/json'
+    if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
     if (isWrite) headers['X-CSRFToken'] = await getCsrfToken(refreshToken)
 
-    return send(`/api${path}`, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    })
+    let payload
+    if (isForm) payload = body
+    else if (body !== undefined) payload = JSON.stringify(body)
+
+    return send(`/api${path}`, { method, headers, body: payload })
   }
 
   let res = await attempt(false)
