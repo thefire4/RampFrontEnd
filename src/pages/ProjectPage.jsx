@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api.js'
+import { percentComplete } from './bomFields.js'
 import EditForm from '../components/EditForm.jsx'
 import ImageGallery from '../components/ImageGallery.jsx'
 import UploadList from '../components/UploadList.jsx'
@@ -41,7 +42,7 @@ const BOM_FIELDS = [
   { name: 'supplier', label: 'Supplier', maxLength: 100 },
   { name: 'color', label: 'Color', maxLength: 50 },
   { name: 'quantity', label: 'Yield', type: 'number' },
-  { name: 'uom', label: 'Unit', maxLength: 10 },
+  { name: 'uom', label: 'Unit', maxLength: 50 },
   { name: 'location', label: 'Placement', maxLength: 1000 },
   { name: 'material_size', label: 'Size / width', maxLength: 50 },
   { name: 'article_no', label: 'Article #', maxLength: 100 },
@@ -270,7 +271,7 @@ function ProjectCompleteness({ colorways }) {
   const lines = colorways.flatMap((c) => c.materials)
   const missing = lines.filter((m) => missingFields(m).length > 0).length
   const complete = lines.length - missing
-  const percent = lines.length ? Math.round((complete / lines.length) * 100) : 0
+  const percent = percentComplete(lines.length, missing)
 
   return (
     <section className="panel" aria-label="BOM completeness">
@@ -392,7 +393,7 @@ function ProjectSummary({ project, sketches, onSaved }) {
 function StatCards({ lines }) {
   const missingCount = lines.filter((m) => missingFields(m).length > 0).length
   const covered = lines.length - missingCount
-  const percent = lines.length ? Math.round((covered / lines.length) * 100) : 0
+  const percent = percentComplete(lines.length, missingCount)
 
   return (
     <div className="stat-grid">
