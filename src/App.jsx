@@ -9,6 +9,7 @@ import Users from './pages/Users.jsx'
 import Placeholder from './pages/Placeholder.jsx'
 import MissingItems from './pages/MissingItems.jsx'
 import PartDetail from './pages/PartDetail.jsx'
+import ActivityLog from './pages/ActivityLog.jsx'
 import NewProject from './pages/NewProject.jsx'
 
 export default function App() {
