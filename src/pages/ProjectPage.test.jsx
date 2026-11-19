@@ -314,7 +314,8 @@ test('Cancel closes the form without saving', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
   expect(screen.queryByRole('form')).not.toBeInTheDocument()
-  expect(api).toHaveBeenCalledTimes(1)
+  // Nothing saved (the page also loads the vendor list, so count saves rather than calls)
+  expect(api).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ method: 'PATCH' }))
   expect(screen.getByText('1 line missing info')).toBeInTheDocument()
 })
 
@@ -377,7 +378,8 @@ test('closing project details without changes does not call the API', async () =
 
   expect(screen.queryByRole('form')).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Edit details' })).toBeInTheDocument()
-  expect(api).toHaveBeenCalledTimes(1)
+  // Nothing saved (the page also loads the vendor list, so count saves rather than calls)
+  expect(api).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ method: 'PATCH' }))
 })
 
 // Found testing with the real sample files (RAMP-130): long file names flooded the page

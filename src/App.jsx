@@ -10,6 +10,8 @@ import Placeholder from './pages/Placeholder.jsx'
 import MissingItems from './pages/MissingItems.jsx'
 import PartDetail from './pages/PartDetail.jsx'
 import NewProject from './pages/NewProject.jsx'
+import Vendors from './pages/Vendors.jsx'
+import VendorDetail from './pages/VendorDetail.jsx'
 
 export default function App() {
   return (
@@ -27,6 +29,8 @@ export default function App() {
           <Route path="/projects/:projectId" element={<ProjectPage />} />
           <Route path="/projects/:projectId/missing" element={<MissingItems />} />
           <Route path="/projects/:projectId/parts/:partId" element={<PartDetail />} />
+          <Route path="/vendors" element={<Vendors />} />
+          <Route path="/vendors/:vendorId" element={<VendorDetail />} />
           <Route path="/tasks" element={<Placeholder title="Tasks & follow-ups" />} />
           <Route path="/shipments" element={<Placeholder title="Shipments" />} />
           <Route path="/inventory" element={<Placeholder title="Inventory" />} />
