@@ -409,3 +409,20 @@ a.source-tag:hover { color: var(--accent); text-decoration-style: solid; }
   font: inherit; font-size: 13px; text-decoration: underline;
 }
 .link-like:disabled { color: var(--muted); cursor: default; }
+
+/* Sourcing details (RAMP-142): each status has its own color and always says it in words */
+.sourcing-badge { white-space: nowrap; }
+.sourcing-rfq { background: #f1f1ee; border-color: #bdbdb6; color: #3a3a36; }
+.sourcing-ordered { background: #eef1fb; border-color: #a9b6e6; color: #1f3fbf; }
+.sourcing-shipped { background: #f4ecfb; border-color: #c9a9e6; color: #5b2a8c; }
+.sourcing-received { background: #e6f4f4; border-color: #8fcaca; color: #145c5c; }
+.sourcing-approved { background: #e9f5ec; border-color: #9fcfab; color: #1d5e2c; }
+.bom-table .row-late td { background: #fbeaea; }
+.bom-table .row-late td:first-child { box-shadow: inset 4px 0 0 #a12020; }
+.nowrap-cell { white-space: nowrap; }
+.approval-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.approval-chip { padding: 0 6px; font-family: inherit; font-size: 11px; line-height: 18px; }
+.field-label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.checkbox-group { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
+.checkbox-option { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 400; color: var(--ink); }
+.checkbox-option input { width: 16px; height: 16px; margin: 0; }
