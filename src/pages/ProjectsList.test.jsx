@@ -154,7 +154,7 @@ test('shows how many open tasks each project has', async () => {
   expect(screen.getByRole('columnheader', { name: 'Open tasks' })).toBeInTheDocument()
   expect(await within(rowFor('Test Jacket')).findByText('2 open')).toBeInTheDocument()
   // Zip Hoodie has a missing BOM item but no open tasks
-  expect(within(rowFor('Zip Hoodie')).getByText('None')).toBeInTheDocument()
+  expect(within(rowFor('Zip Hoodie')).getByText('0 open')).toBeInTheDocument()
   expect(rowFor('Zip Hoodie')).toHaveTextContent('1 missing')
 })
 
@@ -176,4 +176,15 @@ test('hides the open tasks column on a server without tasks', async () => {
   await screen.findByRole('link', { name: 'Test Jacket' })
   await waitFor(() => expect(api).toHaveBeenCalledWith('/projects/9/tasks'))
   await waitFor(() => expect(screen.queryByRole('columnheader', { name: 'Open tasks' })).not.toBeInTheDocument())
+})
+
+// Found by a flaky CI run: both columns said "None", so a row had two of them
+test('a project with nothing missing and no open tasks reads clearly', async () => {
+  api.mockImplementation(async (path) => (path.endsWith('/tasks') ? { tasks: [] } : { projects }))
+  renderList()
+
+  const row = (await screen.findByRole('link', { name: 'Shirt Jac' })).closest('tr')
+  expect(await within(row).findByText('0 open')).toBeInTheDocument()
+  // Only the Missing BOM items column says None
+  expect(within(row).getAllByText('None')).toHaveLength(1)
 })

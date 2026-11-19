@@ -51,7 +51,8 @@ function BomProgress({ project }) {
 
 function OpenTasks({ count }) {
   if (count === undefined) return <span className="muted-dash">…</span>
-  if (count === 0) return <span className="badge badge-ok">None</span>
+  // "0 open" rather than "None", so it can't be mistaken for the Missing BOM items column next to it
+  if (count === 0) return <span className="badge badge-ok">0 open</span>
   return <span className="badge badge-tasks">{count} open</span>
 }
 
