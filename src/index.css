@@ -409,3 +409,19 @@ a.source-tag:hover { color: var(--accent); text-decoration-style: solid; }
   font: inherit; font-size: 13px; text-decoration: underline;
 }
 .link-like:disabled { color: var(--muted); cursor: default; }
+
+/* Tasks (RAMP-139) */
+.task-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.task-toolbar .muted { flex: 1 1 260px; font-size: 13px; }
+.task-table td { vertical-align: top; }
+.task-table select, .task-table input[type="date"] {
+  height: 34px; max-width: 100%; padding: 0 8px; border: 1px solid #bdbdb6; border-radius: 6px;
+  font: inherit; font-size: 13px; background: #fff;
+}
+.task-table select:disabled, .task-table input:disabled { opacity: 0.6; }
+.task-table .badge { margin-top: 4px; }
+.task-table .field-error { display: block; margin-top: 4px; }
+.task-done td { color: var(--muted); }
+.task-done .row-title { color: var(--muted); }
+.task-overdue td:last-child input { border-color: #d27a7a; }
+.badge-tasks { background: #eef1fb; border-color: #a9b6e6; color: #1f3fbf; }
