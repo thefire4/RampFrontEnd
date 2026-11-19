@@ -88,6 +88,19 @@ function isImage(file) {
   return type.startsWith('image/') || IMAGE_EXTENSIONS.includes(type) || IMAGE_EXTENSIONS.includes(ext)
 }
 
+// Different Tech Pack Formats that could be given
+const TECH_PACK_EXTENSIONS = ['xlsx', 'xlsm', 'xltx', 'xltm']
+
+function isTechPack(file) {
+  const ext = (file.file_name || '').split('.').pop().toLowerCase()
+  return !file.source_sheet && TECH_PACK_EXTENSIONS.includes(ext)
+}
+
+// Message that shows when there is no images in the gallery
+function sketchEmptyMessage(files) {
+  return files.some(isTechPack) ? 'No sketches found in the tech pack' : undefined
+}
+
 function formatDate(value) {
   if (!value) return null
   // A plain YYYY-MM-DD is a calendar date; reading it as UTC would show the day before in US time zones
@@ -316,7 +329,7 @@ function ProjectCompleteness({ colorways }) {
   )
 }
 
-function ProjectSummary({ project, sketches, onSaved }) {
+function ProjectSummary({ project, sketches, emptyMessage, onSaved }) {
   const [editing, setEditing] = useState(false)
 
   // [label, value, field name the API uses for its source]
@@ -384,7 +397,7 @@ function ProjectSummary({ project, sketches, onSaved }) {
 
       <div className="summary-sketches">
                <h2 className="eyebrow">Sketches &amp; images{sketches.length > 0 && ` · ${sketches.length}`}</h2>
-        <ImageGallery images={sketches} />
+        <ImageGallery images={sketches} emptyMessage={emptyMessage} />
       </div>
     </section>
   )
@@ -849,7 +862,7 @@ function ProjectView({ projectId }) {
   return (
     <>
       <ProjectHeader project={project} missingTotal={missingTotal} />
-      <ProjectSummary project={project} sketches={sketches} onSaved={handleProjectSaved} />
+      <ProjectSummary project={project} sketches={sketches} emptyMessage={sketchEmptyMessage(files)} onSaved={handleProjectSaved} />
       <ProjectCompleteness colorways={colorways} />
 
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
