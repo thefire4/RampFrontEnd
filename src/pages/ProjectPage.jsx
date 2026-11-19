@@ -5,7 +5,7 @@ import { percentComplete } from './bomFields.js'
 import EditForm from '../components/EditForm.jsx'
 import ImageGallery from '../components/ImageGallery.jsx'
 import {
-  approvalLabel, hasSourcing, isLate, localToday, SOURCING_FIELDS, statusInfo, suppliedByLabel,
+  approvalsText, hasSourcing, isLate, localToday, SOURCING_FIELDS, statusInfo,
 } from '../components/sourcing.js'
 import UploadList from '../components/UploadList.jsx'
 import { ACCEPT_ATTRIBUTE, ACCEPTED_DESCRIPTION, friendlyUploadError, toUploadItems } from '../components/uploads.js'
@@ -484,7 +484,7 @@ function MissingLabel({ fields }) {
 // RAMP-142: sourcing status as a colored badge that also says it in words
 function SourcingStatus({ value }) {
   const info = statusInfo(value)
-  if (!info) return <span className="muted">Not started</span>
+  if (!info) return <span className="muted">Not set</span>
   return <span className={`badge sourcing-badge sourcing-${info.tone}`}>{info.label}</span>
 }
 
@@ -545,16 +545,16 @@ function BomRow({ m, sourcing, today, onEdit, editDisabled }) {
       </td>
       {sourcing && (
         <>
-          <td>{m.supplied_by ? suppliedByLabel(m.supplied_by) : <span className="muted-dash">—</span>}</td>
+          <td>{isBlank(m.supplied_by) ? <span className="muted-dash">—</span> : m.supplied_by}</td>
           <td className="nowrap-cell">
             {m.required_arrival ? formatDate(m.required_arrival) : <span className="muted-dash">—</span>}
             {isLate(m, today) && <div><span className="badge badge-missing">Late</span></div>}
           </td>
-          <td>
+          <td className="wrap-cell">
             <SourcingStatus value={m.sourcing_status} />
-            {(m.approvals_needed || []).length > 0 && (
-              <div className="approval-tags" aria-label="Approvals needed">
-                {m.approvals_needed.map((a) => <span key={a} className="chip approval-chip">{approvalLabel(a)}</span>)}
+            {approvalsText(m.approvals_needed) && (
+              <div className="approvals-text">
+                <span className="approvals-label">Approvals:</span> {approvalsText(m.approvals_needed)}
               </div>
             )}
           </td>

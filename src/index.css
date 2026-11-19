@@ -412,17 +412,23 @@ a.source-tag:hover { color: var(--accent); text-decoration-style: solid; }
 
 /* Sourcing details (RAMP-142): each status has its own color and always says it in words */
 .sourcing-badge { white-space: nowrap; }
-.sourcing-rfq { background: #f1f1ee; border-color: #bdbdb6; color: #3a3a36; }
-.sourcing-ordered { background: #eef1fb; border-color: #a9b6e6; color: #1f3fbf; }
-.sourcing-shipped { background: #f4ecfb; border-color: #c9a9e6; color: #5b2a8c; }
-.sourcing-received { background: #e6f4f4; border-color: #8fcaca; color: #145c5c; }
-.sourcing-approved { background: #e9f5ec; border-color: #9fcfab; color: #1d5e2c; }
+.sourcing-awaiting { background: #fdf3e1; border-color: #e6c27a; color: #7a4d00; }
+.sourcing-delayed { background: #fbeaea; border-color: #e3a5a5; color: #8a1c1c; }
+.sourcing-in-stock { background: #e9f5ec; border-color: #9fcfab; color: #1d5e2c; }
+.sourcing-other { background: #f1f1ee; border-color: #bdbdb6; color: #3a3a36; }
 .bom-table .row-late td { background: #fbeaea; }
 .bom-table .row-late td:first-child { box-shadow: inset 4px 0 0 #a12020; }
 .nowrap-cell { white-space: nowrap; }
-.approval-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.approval-chip { padding: 0 6px; font-family: inherit; font-size: 11px; line-height: 18px; }
-.field-label { font-size: 13px; font-weight: 600; color: var(--muted); }
-.checkbox-group { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
-.checkbox-option { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 400; color: var(--ink); }
-.checkbox-option input { width: 16px; height: 16px; margin: 0; }
+.approvals-text { margin-top: 6px; font-size: 12px; color: var(--ink-soft); white-space: pre-line; }
+.approvals-label { font-weight: 600; color: var(--muted); }
+.field textarea {
+  min-height: 72px; padding: 8px 12px; border: 1px solid #bdbdb6; border-radius: 6px;
+  font: inherit; background: #fff; resize: vertical;
+}
+.field-wide { grid-column: 1 / -1; }
+/* With the sourcing columns the BOM table scrolls sideways; keep the Edit form in the visible part
+   instead of stretching across the whole table (page minus the sidebar and padding) */
+.bom-table .edit-row td > .edit-form { position: sticky; left: 12px; width: min(100%, calc(100vw - 310px)); }
+@media (max-width: 700px) {
+  .bom-table .edit-row td > .edit-form { width: min(100%, calc(100vw - 72px)); }
+}

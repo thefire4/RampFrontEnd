@@ -6,9 +6,9 @@ import { useEffect, useRef, useState } from 'react'
 // - Sends only the fields that changed; a cleared field is sent as null
 //
 // fields: [{ name, label, type?, maxLength?, required?, options? }]
-//   type: 'text' (default) | 'number' | 'date' | 'email' | 'tel' | 'textarea' | 'select' | 'checkboxes'
+//   type: 'text' (default) | 'number' | 'date' | 'email' | 'tel' | 'textarea' | 'select'
 //   options (select only): [{ value, label }]; values are numbers or strings, '' means none (sent as null)
-//   options (checkboxes): [{ value, label }]; the field is a list of the ticked values (sent as an array)
+//   suggestions (text only): values offered as you type; any other text is fine too
 // creating: true for an "add new" form, where required fields must be filled in
 //   even if they started blank, and saving with nothing filled in is an error.
 // onSave(changes) should throw to show an error and keep the form open.
@@ -18,7 +18,6 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function toFormValue(value) {
-  if (Array.isArray(value)) return [...value].sort().join(',')
   return value === null || value === undefined ? '' : String(value)
 }
 
@@ -44,10 +43,6 @@ function check(fields, form, initial, creating) {
     }
     if (value === initial[name].trim()) continue
 
-    if (type === 'checkboxes') {
-      changes[name] = value ? value.split(',') : []
-      continue
-    }
 
     if (value === '') {
       if (required) errors[name] = `${label} can't be left blank.`
@@ -172,7 +167,7 @@ export default function EditForm({
       )}
 
       <div className="edit-grid">
-        {fields.map(({ name, label: fieldLabel, type, maxLength, required, options }) => {
+        {fields.map(({ name, label: fieldLabel, type, maxLength, required, options, suggestions }) => {
           const id = `${idPrefix}-${name}`
           const isMissing = missingSet.has(name)
           const error = errors[name]
@@ -191,30 +186,7 @@ export default function EditForm({
           }
 
           let control
-          if (type === 'checkboxes') {
-            const ticked = new Set(form[name] ? form[name].split(',') : [])
-            const toggle = (value) => {
-              const next = new Set(ticked)
-              if (next.has(value)) next.delete(value)
-              else next.add(value)
-              update(name)({ target: { value: [...next].sort().join(',') } })
-            }
-            control = (
-              <div className="checkbox-group" role="group" aria-labelledby={`${id}-label`}>
-                {(options || []).map((o, i) => (
-                  <label key={o.value} className="checkbox-option">
-                    <input
-                      type="checkbox"
-                      ref={i === 0 ? (el) => { inputs.current[name] = el } : undefined}
-                      checked={ticked.has(o.value)}
-                      onChange={() => toggle(o.value)}
-                    />
-                    {o.label}
-                  </label>
-                ))}
-              </div>
-            )
-          } else if (type === 'select') {
+          if (type === 'select') {
             control = (
               <select {...shared}>
                 {(options || []).map((o) => (
@@ -233,17 +205,26 @@ export default function EditForm({
                 step={type === 'number' ? 'any' : undefined}
                 min={type === 'number' ? 0 : undefined}
                 maxLength={type === 'number' || type === 'date' ? undefined : maxLength}
-                autoComplete={type === 'email' ? 'email' : type === 'tel' ? 'tel' : undefined}
+                autoComplete={type === 'email' ? 'email' : type === 'tel' ? 'tel' : suggestions ? 'off' : undefined}
+                list={suggestions ? `${id}-suggestions` : undefined}
               />
             )
+            if (suggestions) {
+              control = (
+                <>
+                  {control}
+                  <datalist id={`${id}-suggestions`}>
+                    {suggestions.map((value) => <option key={value} value={value} />)}
+                  </datalist>
+                </>
+              )
+            }
           }
 
           return (
             <div className={classes} key={name}>
               <div className="field-label-row">
-                {type === 'checkboxes'
-                  ? <span className="field-label" id={`${id}-label`}>{fieldLabel}</span>
-                  : <label htmlFor={id}>{fieldLabel}{creating && required && <span className="required-mark" aria-hidden="true"> *</span>}</label>}
+                <label htmlFor={id}>{fieldLabel}{creating && required && <span className="required-mark" aria-hidden="true"> *</span>}</label>
                 {isMissing && <span className="field-flag" id={`${id}-flag`}>Missing</span>}
               </div>
               {control}
