@@ -33,7 +33,7 @@ test('hides archived projects by default', async () => {
   expect(await screen.findByRole('link', { name: 'Active Jacket' })).toBeInTheDocument()
   expect(screen.queryByText('Old Parka')).not.toBeInTheDocument()
   expect(screen.getByRole('checkbox', { name: 'Show archived' })).not.toBeChecked()
-  expect(api).toHaveBeenCalledTimes(1)
+  expect(api).not.toHaveBeenCalledWith('/projects?archived=true')
 })
 
 test('the toggle adds archived projects, marked Archived', async () => {
