@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api.js'
 import { fieldLabel, isBlank, missingList } from './bomFields.js'
+import VendorContact from '../components/VendorContact.jsx'
+import { useVendors, vendorsById } from '../components/vendors.js'
 
 // Required fields shown as columns; yield and unit share one column
 const COLUMNS = [
@@ -26,6 +28,9 @@ function MissingItemsView({ projectId }) {
   const [project, setProject] = useState(null)
   const [items, setItems] = useState(null)
   const [error, setError] = useState(null)
+  // RAMP-145: show who to contact at each line's vendor
+  const { vendors } = useVendors()
+  const vendorFor = vendorsById(vendors)
 
   useEffect(() => {
     let cancelled = false
@@ -120,6 +125,9 @@ function MissingItemsView({ projectId }) {
                           {/* e.g. a yield that has a number but no unit */}
                           {gaps.length > 0 && !isBlank(text) && (
                             <div className="missing-text">No {gaps.map((f) => fieldLabel(f).toLowerCase()).join(' or ')}</div>
+                          )}
+                          {c.label === 'Supplier' && vendorFor.has(item.vendor_id) && (
+                            <VendorContact vendor={vendorFor.get(item.vendor_id)} className="vendor-contact-cell" />
                           )}
                         </td>
                       )
