@@ -437,3 +437,9 @@ a.source-tag:hover { color: var(--accent); text-decoration-style: solid; }
 .attention-vendor .vendor-contact { display: inline-flex; flex-direction: row; flex-wrap: wrap; gap: 0 8px; font-size: 13px; }
 .panel-title { margin: 0; font-size: 16px; }
 .panel-title .muted { font-weight: 400; }
+/* Activity log */
+.activity-table td { vertical-align: top; }
+.activity-table .badge { margin-top: 4px; }
+.nowrap { white-space: nowrap; }
+.old-value { color: var(--muted); text-decoration: line-through; }
+.result-count { margin: 4px 0; }

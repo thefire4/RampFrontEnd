@@ -230,6 +230,9 @@ function ProjectHeader({ project, missingTotal }) {
           <Link to={`/projects/${project.id}/missing`} className="secondary-button link-button small-button">
             View missing items
           </Link>
+          <Link to={`/projects/${project.id}/activity`} className="secondary-button link-button small-button">
+             Activity log
+          </Link>
         </div>
         {subtitle.length > 0 && <p>{subtitle.join(' · ')}</p>}
       </div>
