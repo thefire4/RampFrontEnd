@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useContext, useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api.js'
+import { AuthContext } from '../auth/authContext.js'
+import ConfirmDialog from '../components/ConfirmDialog.jsx'
 import { percentComplete } from './bomFields.js'
 import EditForm from '../components/EditForm.jsx'
 import ImageGallery from '../components/ImageGallery.jsx'
@@ -220,7 +222,7 @@ function MissingTotal({ count }) {
   )
 }
 
-function ProjectHeader({ project, missingTotal }) {
+function ProjectHeader({ project, missingTotal, isAdmin, archiving, onArchive, onRestore, onDelete }) {
   const subtitle = [
     project.customer,
     project.season,
@@ -241,10 +243,25 @@ function ProjectHeader({ project, missingTotal }) {
           <h1>{project.name}</h1>
           {project.style_no && <span className="chip">{project.style_no}</span>}
           <StageBadge stage={project.stage} />
+          {project.archived && <span className="badge badge-archived">Archived</span>}
           <MissingTotal count={missingTotal} />
           <Link to={`/projects/${project.id}/missing`} className="secondary-button link-button small-button">
             View missing items
           </Link>
+          <div className="project-actions">
+            {project.archived ? (
+              <button type="button" className="secondary-button small-button" onClick={onRestore} disabled={archiving}>
+                {archiving ? 'Restoring…' : 'Restore'}
+              </button>
+            ) : (
+              <button type="button" className="secondary-button small-button" onClick={onArchive} disabled={archiving}>
+                {archiving ? 'Archiving…' : 'Archive'}
+              </button>
+            )}
+            {isAdmin && (
+              <button type="button" className="danger-button" onClick={onDelete}>Delete project</button>
+            )}
+          </div>
           <Link to={`/projects/${project.id}/activity`} className="secondary-button link-button small-button">
              Activity log
           </Link>
@@ -776,7 +793,7 @@ function FileUploader({ projectId, onUploaded }) {
   )
 }
 
-function FilesTab({ files, projectId, onUploaded }) {
+function FilesTab({ files, projectId, onUploaded, canDelete, onDelete }) {
   return (
     <section className="panel" aria-label="Files">
       <FileUploader projectId={projectId} onUploaded={onUploaded} />
@@ -790,6 +807,16 @@ function FilesTab({ files, projectId, onUploaded }) {
               <span className="muted">
                 {[isImage(file) ? 'Sketch' : file.file_type, formatDate(file.created_at)].filter(Boolean).join(' · ')}
               </span>
+              {canDelete && (
+                <button
+                  type="button"
+                  className="danger-button small-button"
+                  onClick={() => onDelete(file)}
+                  aria-label={`Delete ${file.file_name}`}
+                >
+                  Delete
+                </button>
+              )}  
             </li>
           ))}
         </ul>
@@ -835,6 +862,13 @@ function ProjectView({ projectId }) {
     byId: vendorsById(vendorList.vendors),
   }
 
+    // RAMP-148: archive, restore and delete
+  const navigate = useNavigate()
+  const isAdmin = useContext(AuthContext)?.isAdmin ?? false
+  const [archiving, setArchiving] = useState(false)
+  const [actionError, setActionError] = useState('')
+  const [confirm, setConfirm] = useState(null) // { type: 'project' } or { type: 'file', file }
+
   useEffect(() => {
     let cancelled = false
     api(`/projects/${encodeURIComponent(projectId)}`)
@@ -862,6 +896,37 @@ function ProjectView({ projectId }) {
   function handleProjectSaved(updated) {
     setData((prev) => ({ ...prev, project: { ...prev.project, ...updated } }))
   }
+
+  
+  async function setArchived(archived) {
+    setArchiving(true)
+    setActionError('')
+    try {
+      const result = await api(`/projects/${encodeURIComponent(projectId)}/${archived ? 'archive' : 'restore'}`, { method: 'POST' })
+      const saved = result?.project?.archived ?? archived
+      setData((prev) => ({ ...prev, project: { ...prev.project, archived: saved } }))
+    } catch (err) {
+      setActionError(`Couldn't ${archived ? 'archive' : 'restore'} this project: ${err.message}`)
+    } finally {
+      setArchiving(false)
+    }
+  }
+
+  // Errors are shown in the confirm dialog, which stays open
+  async function deleteProject() {
+    await api(`/projects/${encodeURIComponent(projectId)}`, { method: 'DELETE' })
+    navigate('/projects', { replace: true })
+  }
+
+  async function deleteFile(file) {
+    await api(`/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(file.id)}`, { method: 'DELETE' })
+    setConfirm(null)
+    setData((prev) => ({ ...prev, files: prev.files.filter((f) => f.id !== file.id) }))
+    // Values read from the file lose their source, so refresh the rest of the page too
+    setReloads((n) => n + 1)
+  }
+
+
 
   if (error) {
     const notFound = error.status === 404
@@ -906,14 +971,28 @@ function ProjectView({ projectId }) {
 
   return (
     <>
-      <ProjectHeader project={project} missingTotal={missingTotal} />
+            <ProjectHeader
+        project={project}
+        missingTotal={missingTotal}
+        isAdmin={isAdmin}
+        archiving={archiving}
+        onArchive={() => setArchived(true)}
+        onRestore={() => setArchived(false)}
+        onDelete={() => setConfirm({ type: 'project' })}
+      />
+      {project.archived && (
+        <div className="alert alert-archived" role="status">
+          This project is archived. It&apos;s hidden from the projects list until you restore it.
+        </div>
+      )}
+      {actionError && <div className="alert alert-error" role="alert">{actionError}</div>}
       <ProjectSummary project={project} sketches={sketches} emptyMessage={sketchEmptyMessage(files)} onSaved={handleProjectSaved} />
       <ProjectCompleteness colorways={colorways} />
 
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="tab-panel">
         {tab === 'bom' && <BomTab colorways={colorways} vendors={vendorInfo} onMaterialSaved={handleMaterialSaved} />}
-        {tab === 'files' && <FilesTab files={files} projectId={project.id ?? projectId} onUploaded={() => setReloads((n) => n + 1)} />}
+        {tab === 'files' && <FilesTab files={files} projectId={project.id ?? projectId} onUploaded={() => setReloads((n) => n + 1)} canDelete={isAdmin} onDelete={(file) => setConfirm({ type: 'file', file })} />}
         {tab === 'tasks' && taskState.available && (
           <TaskList
             projectId={project.id ?? projectId}
@@ -924,6 +1003,33 @@ function ProjectView({ projectId }) {
           />
         )}
       </div>
+
+      {confirm?.type === 'project' && (
+        <ConfirmDialog
+          title={`Delete ${project.name}?`}
+          confirmLabel="Delete project"
+          onConfirm={deleteProject}
+          onCancel={() => setConfirm(null)}
+        >
+          <p>
+            This permanently removes <strong>{project.name}</strong> with its BOM, change history and all of its files.
+            This can&apos;t be undone. To hide it instead, use Archive.
+          </p>
+        </ConfirmDialog>
+      )}
+      {confirm?.type === 'file' && (
+        <ConfirmDialog
+          title={`Delete ${confirm.file.file_name}?`}
+          confirmLabel="Delete file"
+          onConfirm={() => deleteFile(confirm.file)}
+          onCancel={() => setConfirm(null)}
+        >
+          <p>
+            This permanently removes <strong>{confirm.file.file_name}</strong> from {project.name}.
+            Values already read from it stay in the BOM. This can&apos;t be undone.
+          </p>
+        </ConfirmDialog>
+      )}
     </>
   )
 }

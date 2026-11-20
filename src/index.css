@@ -410,6 +410,23 @@ a.source-tag:hover { color: var(--accent); text-decoration-style: solid; }
 }
 .link-like:disabled { color: var(--muted); cursor: default; }
 
+
+/* Archive and delete (RAMP-148) */
+.project-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.badge-archived { background: var(--rail); border-color: var(--line); color: var(--muted); }
+.alert-archived { margin-bottom: 12px; background: var(--rail); border: 1px solid var(--line); color: var(--ink); }
+.row-archived td { color: var(--muted); }
+.row-archived .badge-archived { margin-left: 8px; }
+.archived-toggle { display: flex; align-items: center; gap: 6px; min-height: 40px; font-size: 14px; }
+.file-list .danger-button { margin-left: auto; }
+.confirm-dialog {
+  width: min(440px, 100%); padding: 20px; border-radius: 8px;
+  background: var(--panel); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+.confirm-dialog h2 { margin: 0 0 8px; font-size: 18px; overflow-wrap: anywhere; }
+.confirm-body p { margin: 0 0 12px; font-size: 14px; line-height: 1.5; }
+.confirm-dialog .alert { margin-bottom: 12px; }
+.confirm-actions { justify-content: flex-end; }
 /* Ramp 151 - Sketch Labels */
 .sketch-grid .thumb .thumb-tab {
   align-self: flex-start; padding: 1px 6px; border: 1px solid var(--line); border-radius: 999px;
