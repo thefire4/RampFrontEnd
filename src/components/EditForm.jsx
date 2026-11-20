@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react'
 // fields: [{ name, label, type?, maxLength?, required?, options? }]
 //   type: 'text' (default) | 'number' | 'date' | 'email' | 'tel' | 'textarea' | 'select'
 //   options (select only): [{ value, label }]; values are numbers or strings, '' means none (sent as null)
+//   suggestions (text only): values offered as you type; any other text is fine too
 // creating: true for an "add new" form, where required fields must be filled in
 //   even if they started blank, and saving with nothing filled in is an error.
 // onSave(changes) should throw to show an error and keep the form open.
@@ -41,6 +42,7 @@ function check(fields, form, initial, creating) {
       continue
     }
     if (value === initial[name].trim()) continue
+
 
     if (value === '') {
       if (required) errors[name] = `${label} can't be left blank.`
@@ -165,7 +167,7 @@ export default function EditForm({
       )}
 
       <div className="edit-grid">
-        {fields.map(({ name, label: fieldLabel, type, maxLength, required, options }) => {
+        {fields.map(({ name, label: fieldLabel, type, maxLength, required, options, suggestions }) => {
           const id = `${idPrefix}-${name}`
           const isMissing = missingSet.has(name)
           const error = errors[name]
@@ -203,9 +205,20 @@ export default function EditForm({
                 step={type === 'number' ? 'any' : undefined}
                 min={type === 'number' ? 0 : undefined}
                 maxLength={type === 'number' || type === 'date' ? undefined : maxLength}
-                autoComplete={type === 'email' ? 'email' : type === 'tel' ? 'tel' : undefined}
+                autoComplete={type === 'email' ? 'email' : type === 'tel' ? 'tel' : suggestions ? 'off' : undefined}
+                list={suggestions ? `${id}-suggestions` : undefined}
               />
             )
+            if (suggestions) {
+              control = (
+                <>
+                  {control}
+                  <datalist id={`${id}-suggestions`}>
+                    {suggestions.map((value) => <option key={value} value={value} />)}
+                  </datalist>
+                </>
+              )
+            }
           }
 
           return (

@@ -6,6 +6,9 @@ import ConfirmDialog from '../components/ConfirmDialog.jsx'
 import { percentComplete } from './bomFields.js'
 import EditForm from '../components/EditForm.jsx'
 import ImageGallery from '../components/ImageGallery.jsx'
+import {
+  approvalsText, hasSourcing, isLate, localToday, SOURCING_FIELDS, statusInfo,
+} from '../components/sourcing.js'
 import TaskList from '../components/TaskList.jsx'
 import { isOpenTask, useProjectTasks } from '../components/tasks.js'
 import VendorContact from '../components/VendorContact.jsx'
@@ -520,7 +523,14 @@ function MissingLabel({ fields }) {
   )
 }
 
-function BomRow({ m, vendors, onEdit, editDisabled }) {
+// RAMP-142: sourcing status as a colored badge that also says it in words
+function SourcingStatus({ value }) {
+  const info = statusInfo(value)
+  if (!info) return <span className="muted">Not set</span>
+  return <span className={`badge sourcing-badge sourcing-${info.tone}`}>{info.label}</span>
+}
+
+function BomRow({ m, vendors, sourcing, today, onEdit, editDisabled }) {
   const { projectId } = useParams()
   const gaps = missingFields(m)
   const isOpen = gaps.length > 0
@@ -539,7 +549,7 @@ function BomRow({ m, vendors, onEdit, editDisabled }) {
   }
 
   return (
-    <tr className={isOpen ? 'row-open' : undefined}>
+    <tr className={[isOpen && 'row-open', sourcing && isLate(m, today) && 'row-late'].filter(Boolean).join(' ') || undefined}>
       <td>
         <div className="row-title">
            <Link to={`/projects/${projectId}/parts/${m.id}`} title={tip('name')} className="row-title">
@@ -582,6 +592,23 @@ function BomRow({ m, vendors, onEdit, editDisabled }) {
         )}
         {ownSource('quantity')}
       </td>
+      {sourcing && (
+        <>
+          <td>{isBlank(m.supplied_by) ? <span className="muted-dash">—</span> : m.supplied_by}</td>
+          <td className="nowrap-cell">
+            {m.required_arrival ? formatDate(m.required_arrival) : <span className="muted-dash">—</span>}
+            {isLate(m, today) && <div><span className="badge badge-missing">Late</span></div>}
+          </td>
+          <td className="wrap-cell">
+            <SourcingStatus value={m.sourcing_status} />
+            {approvalsText(m.approvals_needed) && (
+              <div className="approvals-text">
+                <span className="approvals-label">Approvals:</span> {approvalsText(m.approvals_needed)}
+              </div>
+            )}
+          </td>
+        </>
+      )}
       <td className="wrap-cell" title={tip('notes')}>{cell(m.notes)}{ownSource('notes')}</td>
       <td className="actions">
         <button
@@ -606,24 +633,25 @@ function bomFieldsWithVendor(vendors) {
   return [...BOM_FIELDS.slice(0, at), vendorField, ...BOM_FIELDS.slice(at)]
 }
 
-function BomEditRow({ m, vendors, onCancel, onSaved }) {
+function BomEditRow({ m, vendors, sourcing, columns, onCancel, onSaved }) {
   async function save(changes) {
     const data = await api(`/materials/${encodeURIComponent(m.id)}`, { method: 'PATCH', body: changes })
     const saved = data.material ?? { ...m, ...changes }
     // The save response has no sources, so mark what was just typed in as entered by hand.
-    // The vendor link isn't one of the line's text values, so it doesn't get a source label.
+ // Sourcing details and the vendor link aren't values read from a file, so they don't get source labels.
     const typed = { ...changes }
+    for (const f of SOURCING_FIELDS) delete typed[f.name]
     delete typed.vendor_id
     onSaved({ ...saved, fields: markEnteredByHand(m.fields, typed) })
   }
 
   return (
     <tr className="edit-row">
-      <td colSpan={9}>
+      <td colSpan={columns}>
         <EditForm
           label={`Edit ${m.name || 'line'}`}
           idPrefix={`edit-${m.id}`}
-          fields={bomFieldsWithVendor(vendors)}
+ fields={sourcing ? [...bomFieldsWithVendor(vendors), ...SOURCING_FIELDS] : bomFieldsWithVendor(vendors)}
           values={m}
           missing={missingKeys(m)}
           onSave={save}
@@ -645,6 +673,10 @@ function BomTab({ colorways, vendors, onMaterialSaved }) {
   const lines = selected.materials
   const visible = openOnly ? lines.filter((m) => missingFields(m).length > 0) : lines
   const groups = groupByCategory(visible)
+  // RAMP-142: sourcing columns once the server sends sourcing details (RAMP-141)
+  const sourcing = hasSourcing(colorways)
+  const today = localToday()
+  const columns = sourcing ? 12 : 9
 
   return (
     <>
@@ -687,6 +719,13 @@ function BomTab({ colorways, vendors, onMaterialSaved }) {
                   <th scope="col">Size / width</th>
                   <th scope="col">Responsible</th>
                   <th scope="col">Yield</th>
+                  {sourcing && (
+                    <>
+                      <th scope="col">Supplied by</th>
+                      <th scope="col">Required arrival</th>
+                      <th scope="col">Status</th>
+                    </>
+                  )}
                   <th scope="col">Notes</th>
                   <th scope="col"><span className="visually-hidden">Actions</span></th>
                 </tr>
@@ -695,7 +734,7 @@ function BomTab({ colorways, vendors, onMaterialSaved }) {
                 <tbody key={category || 'all'}>
                   {category && (
                     <tr className="group-row">
-                      <th scope="colgroup" colSpan={9}>
+                      <th scope="colgroup" colSpan={columns}>
                         {category} <span>{rows.length} {rows.length === 1 ? 'line' : 'lines'}</span>
                       </th>
                     </tr>
@@ -706,6 +745,8 @@ function BomTab({ colorways, vendors, onMaterialSaved }) {
                         key={m.id}
                         m={m}
                         vendors={vendors}
+                        sourcing={sourcing}
+                        columns={columns}
                         onCancel={() => setEditingId(null)}
                         onSaved={(updated) => {
                           onMaterialSaved(selected.id, updated)
@@ -713,7 +754,7 @@ function BomTab({ colorways, vendors, onMaterialSaved }) {
                         }}
                       />
                     ) : (
-                      <BomRow key={m.id} m={m} vendors={vendors} onEdit={() => setEditingId(m.id)} editDisabled={editingId !== null} />
+                      <BomRow key={m.id} m={m} vendors={vendors} sourcing={sourcing} today={today} onEdit={() => setEditingId(m.id)} editDisabled={editingId !== null} />
                     )
                   )}
                 </tbody>
