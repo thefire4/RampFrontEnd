@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 
 // Sketch and image thumbnails, plus a full-size viewer with previous/next/close.
-// `images` is a list of { id, file_name, url }.
+function tabLabel(image) {
+  return image.source_sheet ? `${image.source_sheet} tab` : null
+}
 
 function ImageFallback({ name, large = false }) {
   return (
@@ -55,7 +57,10 @@ function ImageViewer({ images, index, onChange, onClose }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="viewer-bar">
-          <span className="viewer-title">{image.file_name}</span>
+          <span className="viewer-title">
+            {image.file_name}
+            {tabLabel(image) && <span className="viewer-tab">From the {tabLabel(image)}</span>}
+          </span>
           <span className="viewer-count">{index + 1} / {images.length}</span>
           <a href={image.url} target="_blank" rel="noreferrer" className="viewer-link">Open original</a>
           <button ref={closeRef} type="button" className="viewer-close" onClick={onClose} aria-label="Close viewer">
@@ -81,7 +86,7 @@ function ImageViewer({ images, index, onChange, onClose }) {
   )
 }
 
-export default function ImageGallery({ images }) {
+export default function ImageGallery({ images, emptyMessage = 'No sketches or images uploaded yet' }) {
   const [openIndex, setOpenIndex] = useState(null)
   const thumbRefs = useRef([])
 
@@ -93,7 +98,7 @@ export default function ImageGallery({ images }) {
   }
 
   if (images.length === 0) {
-    return <div className="sketch-placeholder">No sketches or images uploaded yet</div>
+    return <div className="sketch-placeholder">{emptyMessage}</div>
   }
 
   return (
@@ -106,10 +111,11 @@ export default function ImageGallery({ images }) {
               type="button"
               className="thumb"
               onClick={() => setOpenIndex(i)}
-              aria-label={`Open ${image.file_name} full size`}
+              aria-label={`Open ${image.file_name}${tabLabel(image) ? ` from the ${tabLabel(image)}` : ''} full size`}
             >
               <SafeImage image={image} loading="lazy" />
               <span>{image.file_name}</span>
+              {tabLabel(image) && <span className="thumb-tab">{tabLabel(image)}</span>}
             </button>
           </li>
         ))}

@@ -410,6 +410,12 @@ a.source-tag:hover { color: var(--accent); text-decoration-style: solid; }
 }
 .link-like:disabled { color: var(--muted); cursor: default; }
 
+/* Ramp 151 - Sketch Labels */
+.sketch-grid .thumb .thumb-tab {
+  align-self: flex-start; padding: 1px 6px; border: 1px solid var(--line); border-radius: 999px;
+  font-size: 11px; font-weight: 600; color: var(--ink-soft);
+}
+.viewer-tab { margin-left: 8px; font-size: 13px; font-weight: 400; color: var(--muted); }
 /* Tasks (RAMP-139) */
 .task-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .task-toolbar .muted { flex: 1 1 260px; font-size: 13px; }
