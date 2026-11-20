@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api.js'
+import { useOpenTaskCounts } from '../components/tasks.js'
 import { percentComplete } from './bomFields.js'
 
 const stageLabels = {
@@ -48,6 +49,13 @@ function BomProgress({ project }) {
   )
 }
 
+function OpenTasks({ count }) {
+  if (count === undefined) return <span className="muted-dash">…</span>
+  // "0 open" rather than "None", so it can't be mistaken for the Missing BOM items column next to it
+  if (count === 0) return <span className="badge badge-ok">0 open</span>
+  return <span className="badge badge-tasks">{count} open</span>
+}
+
 function MissingCount({ count }) {
   if (!count) return <span className="badge badge-ok">None</span>
   return <span className="badge badge-warn">{count} missing</span>
@@ -80,7 +88,7 @@ function filterProjects(projects, { q, stage, division, status }) {
   )
 }
 
-function ProjectFilters({ projects, filters, onChange, onClear, active }) {
+function ProjectFilters({ projects, filters, onChange, onClear, active, showArchived, onToggleArchived }) {
   const divisions = [...new Set(projects.map((p) => p.customer).filter((c) => c && c.trim()))]
     .sort((a, b) => a.localeCompare(b))
   const stages = [...new Set([...Object.keys(stageLabels), ...projects.map((p) => p.stage).filter(Boolean)])]
@@ -118,6 +126,10 @@ function ProjectFilters({ projects, filters, onChange, onClear, active }) {
           {STATUS_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
       </div>
+      <label className="archived-toggle">
+        <input type="checkbox" checked={showArchived} onChange={(e) => onToggleArchived(e.target.checked)} />
+        Show archived
+      </label>
       <button type="button" className="secondary-button" onClick={onClear} disabled={!active}>
         Clear filters
       </button>
@@ -132,12 +144,21 @@ export default function ProjectsList() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  // RAMP-148: the API leaves archived projects out unless asked for them
+  const showArchived = searchParams.get('archived') === '1'
+
   useEffect(() => {
-    api('/projects')
-      .then((data) => setProjects(data.projects))
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
-  }, [])
+    let cancelled = false
+    setLoading(true)
+    setError('')
+    Promise.all([api('/projects'), showArchived ? api('/projects?archived=true') : null])
+      .then(([active, archived]) => {
+        if (!cancelled) setProjects([...active.projects, ...(archived?.projects ?? [])])
+      })
+      .catch((err) => { if (!cancelled) setError(err.message) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [showArchived])
 
   const filters = {
     q: searchParams.get('q') ?? '',
@@ -147,6 +168,8 @@ export default function ProjectsList() {
   }
   const filtersActive = Object.values(filters).some((v) => v !== '')
   const visible = filterProjects(projects, filters)
+  // RAMP-139: open tasks per project
+  const openTasks = useOpenTaskCounts(projects)
 
   function setFilter(key, value) {
     const next = new URLSearchParams(searchParams)
@@ -155,8 +178,13 @@ export default function ProjectsList() {
     setSearchParams(next, { replace: true })
   }
 
+  // Clearing filters keeps the archived toggle as it is
   function clearFilters() {
-    setSearchParams({}, { replace: true })
+    setSearchParams(showArchived ? { archived: '1' } : {}, { replace: true })
+  }
+
+  function setShowArchived(show) {
+    setFilter('archived', show ? '1' : '')
   }
 
   const newProjectButton = (
@@ -174,6 +202,9 @@ export default function ProjectsList() {
         <h2>No projects yet</h2>
         <p>Projects you create will show up here with their BOM status.</p>
         {newProjectButton}
+        {!showArchived && (
+          <button type="button" className="link-like" onClick={() => setShowArchived(true)}>Show archived projects</button>
+        )}
       </div>
     )
   } else if (visible.length === 0) {
@@ -198,16 +229,18 @@ export default function ProjectsList() {
                 <th scope="col">BOM complete</th>
                 <th scope="col">Created</th>
                 <th scope="col">Missing BOM items</th>
+                {openTasks.available && <th scope="col">Open tasks</th>}
               </tr>
             </thead>
             <tbody>
               {visible.map((p) => (
                 // The whole row is clickable; the name link keeps it keyboard and screen reader friendly.
-                <tr key={p.id} className="clickable-row" onClick={() => navigate(`/projects/${p.id}`)}>
+                <tr key={p.id} className={`clickable-row${p.archived ? ' row-archived' : ''}`} onClick={() => navigate(`/projects/${p.id}`)}>
                   <td>
                     <Link to={`/projects/${p.id}`} onClick={(e) => e.stopPropagation()} className="row-title">
                       {p.name}
                     </Link>
+                    {p.archived && <span className="badge badge-archived">Archived</span>}
                     {p.style_description && <div className="row-subtitle">{p.style_description}</div>}
                   </td>
                   <td>{p.customer || '—'}</td>
@@ -216,6 +249,7 @@ export default function ProjectsList() {
                   <td><BomProgress project={p} /></td>
                   <td>{formatDate(p.created_at)}</td>
                   <td><MissingCount count={p.missing_bom_items} /></td>
+                  {openTasks.available && <td><OpenTasks count={openTasks.counts.get(p.id)} /></td>}
                 </tr>
               ))}
             </tbody>
@@ -235,7 +269,8 @@ export default function ProjectsList() {
         {projects.length > 0 && newProjectButton}
       </div>
 
-      {!loading && !error && projects.length > 0 && (
+      {/* Stays up while the list reloads, so the archived toggle keeps focus */}
+      {!error && (projects.length > 0 || showArchived) && (
         <>
           <ProjectFilters
             projects={projects}
@@ -243,6 +278,8 @@ export default function ProjectsList() {
             onChange={setFilter}
             onClear={clearFilters}
             active={filtersActive}
+            showArchived={showArchived}
+            onToggleArchived={setShowArchived}
           />
           <p className="result-count" aria-live="polite">
             {filtersActive ? `Showing ${visible.length} of ${projects.length} projects` : `${projects.length} projects`}

@@ -34,5 +34,5 @@ test('project page shows only the sketches and images, and opens them full size'
 
 test('project page says when there are no images', async () => {
   renderWith([{ id: 2, file_name: 'techpack.xlsx', file_type: 'xlsx', url: '/api/files/2' }])
-  expect(await screen.findByText('No sketches or images uploaded yet')).toBeInTheDocument()
+  expect(await screen.findByText('No sketches found in the tech pack')).toBeInTheDocument()
 })

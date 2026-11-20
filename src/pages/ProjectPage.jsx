@@ -1,12 +1,18 @@
-import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useContext, useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api.js'
+import { AuthContext } from '../auth/authContext.js'
+import ConfirmDialog from '../components/ConfirmDialog.jsx'
 import { percentComplete } from './bomFields.js'
 import EditForm from '../components/EditForm.jsx'
 import ImageGallery from '../components/ImageGallery.jsx'
 import {
   approvalsText, hasSourcing, isLate, localToday, SOURCING_FIELDS, statusInfo,
 } from '../components/sourcing.js'
+import TaskList from '../components/TaskList.jsx'
+import { isOpenTask, useProjectTasks } from '../components/tasks.js'
+import VendorContact from '../components/VendorContact.jsx'
+import { useVendors, vendorOptions, vendorsById } from '../components/vendors.js'
 import UploadList from '../components/UploadList.jsx'
 import { ACCEPT_ATTRIBUTE, ACCEPTED_DESCRIPTION, friendlyUploadError, toUploadItems } from '../components/uploads.js'
 
@@ -89,6 +95,19 @@ function isImage(file) {
   const type = (file.file_type || '').toLowerCase()
   const ext = (file.file_name || '').split('.').pop().toLowerCase()
   return type.startsWith('image/') || IMAGE_EXTENSIONS.includes(type) || IMAGE_EXTENSIONS.includes(ext)
+}
+
+// Different Tech Pack Formats that could be given
+const TECH_PACK_EXTENSIONS = ['xlsx', 'xlsm', 'xltx', 'xltm']
+
+function isTechPack(file) {
+  const ext = (file.file_name || '').split('.').pop().toLowerCase()
+  return !file.source_sheet && TECH_PACK_EXTENSIONS.includes(ext)
+}
+
+// Message that shows when there is no images in the gallery
+function sketchEmptyMessage(files) {
+  return files.some(isTechPack) ? 'No sketches found in the tech pack' : undefined
 }
 
 function formatDate(value) {
@@ -206,7 +225,7 @@ function MissingTotal({ count }) {
   )
 }
 
-function ProjectHeader({ project, missingTotal }) {
+function ProjectHeader({ project, missingTotal, isAdmin, archiving, onArchive, onRestore, onDelete }) {
   const subtitle = [
     project.customer,
     project.season,
@@ -227,9 +246,27 @@ function ProjectHeader({ project, missingTotal }) {
           <h1>{project.name}</h1>
           {project.style_no && <span className="chip">{project.style_no}</span>}
           <StageBadge stage={project.stage} />
+          {project.archived && <span className="badge badge-archived">Archived</span>}
           <MissingTotal count={missingTotal} />
           <Link to={`/projects/${project.id}/missing`} className="secondary-button link-button small-button">
             View missing items
+          </Link>
+          <div className="project-actions">
+            {project.archived ? (
+              <button type="button" className="secondary-button small-button" onClick={onRestore} disabled={archiving}>
+                {archiving ? 'Restoring…' : 'Restore'}
+              </button>
+            ) : (
+              <button type="button" className="secondary-button small-button" onClick={onArchive} disabled={archiving}>
+                {archiving ? 'Archiving…' : 'Archive'}
+              </button>
+            )}
+            {isAdmin && (
+              <button type="button" className="danger-button" onClick={onDelete}>Delete project</button>
+            )}
+          </div>
+          <Link to={`/projects/${project.id}/activity`} className="secondary-button link-button small-button">
+             Activity log
           </Link>
         </div>
         {subtitle.length > 0 && <p>{subtitle.join(' · ')}</p>}
@@ -319,7 +356,7 @@ function ProjectCompleteness({ colorways }) {
   )
 }
 
-function ProjectSummary({ project, sketches, onSaved }) {
+function ProjectSummary({ project, sketches, emptyMessage, onSaved }) {
   const [editing, setEditing] = useState(false)
 
   // [label, value, field name the API uses for its source]
@@ -387,7 +424,7 @@ function ProjectSummary({ project, sketches, onSaved }) {
 
       <div className="summary-sketches">
                <h2 className="eyebrow">Sketches &amp; images{sketches.length > 0 && ` · ${sketches.length}`}</h2>
-        <ImageGallery images={sketches} />
+        <ImageGallery images={sketches} emptyMessage={emptyMessage} />
       </div>
     </section>
   )
@@ -416,7 +453,7 @@ function StatCards({ lines }) {
   )
 }
 
-function NeedsAttention({ lines, colorwayName, onEdit, editDisabled }) {
+function NeedsAttention({ lines, colorwayName, vendors, onEdit, editDisabled }) {
   const open = lines.filter((m) => missingFields(m).length > 0)
   if (open.length === 0) return null
 
@@ -433,6 +470,11 @@ function NeedsAttention({ lines, colorwayName, onEdit, editDisabled }) {
             </div>
             <div className="attention-owner">
               Responsible: <strong>{isBlank(m.supplier_contact) ? '[Unassigned]' : m.supplier_contact}</strong>
+              {vendors.byId.has(m.vendor_id) && (
+                <div className="attention-vendor">
+                  Vendor: <VendorContact vendor={vendors.byId.get(m.vendor_id)} />
+                </div>
+              )}
             </div>
             <button
               type="button"
@@ -488,7 +530,7 @@ function SourcingStatus({ value }) {
   return <span className={`badge sourcing-badge sourcing-${info.tone}`}>{info.label}</span>
 }
 
-function BomRow({ m, sourcing, today, onEdit, editDisabled }) {
+function BomRow({ m, vendors, sourcing, today, onEdit, editDisabled }) {
   const { projectId } = useParams()
   const gaps = missingFields(m)
   const isOpen = gaps.length > 0
@@ -521,7 +563,14 @@ function BomRow({ m, sourcing, today, onEdit, editDisabled }) {
         {ownSource('material')}
         {isOpen && <MissingLabel fields={gaps} />}
       </td>
-      <td className={requiredCell('supplier')} title={tip('supplier')}>{required(m.supplier)}{ownSource('supplier')}</td>
+      <td className={['wrap-cell', requiredCell('supplier')].filter(Boolean).join(' ')} title={tip('supplier')}>
+        {required(m.supplier)}
+        {ownSource('supplier')}
+        {/* RAMP-145: the linked vendor's contact, so it's clear who to follow up with */}
+        {vendors.byId.has(m.vendor_id) && (
+          <VendorContact vendor={vendors.byId.get(m.vendor_id)} className="vendor-contact-cell" />
+        )}
+      </td>
       <td className={requiredCell('color')} title={tip('color')}>{required(m.color)}{ownSource('color')}</td>
       <td className={['wrap-cell', requiredCell('location')].filter(Boolean).join(' ')} title={tip('location')}>
         {required(m.location)}{ownSource('location')}
@@ -576,14 +625,23 @@ function BomRow({ m, sourcing, today, onEdit, editDisabled }) {
   )
 }
 
-function BomEditRow({ m, sourcing, columns, onCancel, onSaved }) {
+// The BOM line form, plus a vendor dropdown after Supplier when the server has vendors (RAMP-145)
+function bomFieldsWithVendor(vendors) {
+  if (!vendors.available) return BOM_FIELDS
+  const vendorField = { name: 'vendor_id', label: 'Vendor', type: 'select', options: vendorOptions(vendors.list) }
+  const at = BOM_FIELDS.findIndex((f) => f.name === 'supplier') + 1
+  return [...BOM_FIELDS.slice(0, at), vendorField, ...BOM_FIELDS.slice(at)]
+}
+
+function BomEditRow({ m, vendors, sourcing, columns, onCancel, onSaved }) {
   async function save(changes) {
     const data = await api(`/materials/${encodeURIComponent(m.id)}`, { method: 'PATCH', body: changes })
     const saved = data.material ?? { ...m, ...changes }
     // The save response has no sources, so mark what was just typed in as entered by hand.
-    // Sourcing details aren't values read from a file, so they don't get source labels.
+ // Sourcing details and the vendor link aren't values read from a file, so they don't get source labels.
     const typed = { ...changes }
     for (const f of SOURCING_FIELDS) delete typed[f.name]
+    delete typed.vendor_id
     onSaved({ ...saved, fields: markEnteredByHand(m.fields, typed) })
   }
 
@@ -593,7 +651,7 @@ function BomEditRow({ m, sourcing, columns, onCancel, onSaved }) {
         <EditForm
           label={`Edit ${m.name || 'line'}`}
           idPrefix={`edit-${m.id}`}
-          fields={sourcing ? [...BOM_FIELDS, ...SOURCING_FIELDS] : BOM_FIELDS}
+ fields={sourcing ? [...bomFieldsWithVendor(vendors), ...SOURCING_FIELDS] : bomFieldsWithVendor(vendors)}
           values={m}
           missing={missingKeys(m)}
           onSave={save}
@@ -604,7 +662,7 @@ function BomEditRow({ m, sourcing, columns, onCancel, onSaved }) {
   )
 }
 
-function BomTab({ colorways, onMaterialSaved }) {
+function BomTab({ colorways, vendors, onMaterialSaved }) {
   const [selectedId, setSelectedId] = useState(colorways[0]?.id)
   const [openOnly, setOpenOnly] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -639,6 +697,7 @@ function BomTab({ colorways, onMaterialSaved }) {
       <NeedsAttention
         lines={lines}
         colorwayName={selected.name}
+        vendors={vendors}
         onEdit={(id) => setEditingId(id)}
         editDisabled={editingId !== null}
       />
@@ -685,6 +744,7 @@ function BomTab({ colorways, onMaterialSaved }) {
                       <BomEditRow
                         key={m.id}
                         m={m}
+                        vendors={vendors}
                         sourcing={sourcing}
                         columns={columns}
                         onCancel={() => setEditingId(null)}
@@ -694,7 +754,7 @@ function BomTab({ colorways, onMaterialSaved }) {
                         }}
                       />
                     ) : (
-                      <BomRow key={m.id} m={m} sourcing={sourcing} today={today} onEdit={() => setEditingId(m.id)} editDisabled={editingId !== null} />
+                      <BomRow key={m.id} m={m} vendors={vendors} sourcing={sourcing} today={today} onEdit={() => setEditingId(m.id)} editDisabled={editingId !== null} />
                     )
                   )}
                 </tbody>
@@ -774,7 +834,7 @@ function FileUploader({ projectId, onUploaded }) {
   )
 }
 
-function FilesTab({ files, projectId, onUploaded }) {
+function FilesTab({ files, projectId, onUploaded, canDelete, onDelete }) {
   return (
     <section className="panel" aria-label="Files">
       <FileUploader projectId={projectId} onUploaded={onUploaded} />
@@ -788,6 +848,16 @@ function FilesTab({ files, projectId, onUploaded }) {
               <span className="muted">
                 {[isImage(file) ? 'Sketch' : file.file_type, formatDate(file.created_at)].filter(Boolean).join(' · ')}
               </span>
+              {canDelete && (
+                <button
+                  type="button"
+                  className="danger-button small-button"
+                  onClick={() => onDelete(file)}
+                  aria-label={`Delete ${file.file_name}`}
+                >
+                  Delete
+                </button>
+              )}  
             </li>
           ))}
         </ul>
@@ -822,6 +892,23 @@ function ProjectView({ projectId }) {
   const [tab, setTab] = useState('bom')
   // Bumped after an upload so the project reloads with the new file's details and BOM lines
   const [reloads, setReloads] = useState(0)
+  // RAMP-139: tasks reload after a BOM line is saved, since the backend opens and closes them
+  const [taskReloads, setTaskReloads] = useState(0)
+  const taskState = useProjectTasks(projectId, reloads + taskReloads)
+  // RAMP-145: BOM lines only carry vendor_id, so load the vendor list once to show contacts
+  const vendorList = useVendors()
+  const vendorInfo = {
+    available: vendorList.available && !vendorList.error,
+    list: vendorList.vendors,
+    byId: vendorsById(vendorList.vendors),
+  }
+
+    // RAMP-148: archive, restore and delete
+  const navigate = useNavigate()
+  const isAdmin = useContext(AuthContext)?.isAdmin ?? false
+  const [archiving, setArchiving] = useState(false)
+  const [actionError, setActionError] = useState('')
+  const [confirm, setConfirm] = useState(null) // { type: 'project' } or { type: 'file', file }
 
   useEffect(() => {
     let cancelled = false
@@ -836,6 +923,7 @@ function ProjectView({ projectId }) {
 
   // Swap the saved line into state; stats, flags and Needs attention recalculate from it
   function handleMaterialSaved(colorwayId, updated) {
+    setTaskReloads((n) => n + 1)
     setData((prev) => ({
       ...prev,
       colorways: prev.colorways.map((c) =>
@@ -849,6 +937,37 @@ function ProjectView({ projectId }) {
   function handleProjectSaved(updated) {
     setData((prev) => ({ ...prev, project: { ...prev.project, ...updated } }))
   }
+
+  
+  async function setArchived(archived) {
+    setArchiving(true)
+    setActionError('')
+    try {
+      const result = await api(`/projects/${encodeURIComponent(projectId)}/${archived ? 'archive' : 'restore'}`, { method: 'POST' })
+      const saved = result?.project?.archived ?? archived
+      setData((prev) => ({ ...prev, project: { ...prev.project, archived: saved } }))
+    } catch (err) {
+      setActionError(`Couldn't ${archived ? 'archive' : 'restore'} this project: ${err.message}`)
+    } finally {
+      setArchiving(false)
+    }
+  }
+
+  // Errors are shown in the confirm dialog, which stays open
+  async function deleteProject() {
+    await api(`/projects/${encodeURIComponent(projectId)}`, { method: 'DELETE' })
+    navigate('/projects', { replace: true })
+  }
+
+  async function deleteFile(file) {
+    await api(`/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(file.id)}`, { method: 'DELETE' })
+    setConfirm(null)
+    setData((prev) => ({ ...prev, files: prev.files.filter((f) => f.id !== file.id) }))
+    // Values read from the file lose their source, so refresh the rest of the page too
+    setReloads((n) => n + 1)
+  }
+
+
 
   if (error) {
     const notFound = error.status === 404
@@ -887,18 +1006,71 @@ function ProjectView({ projectId }) {
   const tabs = [
     { id: 'bom', label: `BOM (${totalLines})` },
     { id: 'files', label: `Files (${files.length})` },
+    // Only when the server has tasks (RAMP-138)
+    ...(taskState.available ? [{ id: 'tasks', label: `Tasks (${taskState.tasks.filter(isOpenTask).length} open)` }] : []),
   ]
 
   return (
     <>
-      <ProjectHeader project={project} missingTotal={missingTotal} />
-      <ProjectSummary project={project} sketches={sketches} onSaved={handleProjectSaved} />
+            <ProjectHeader
+        project={project}
+        missingTotal={missingTotal}
+        isAdmin={isAdmin}
+        archiving={archiving}
+        onArchive={() => setArchived(true)}
+        onRestore={() => setArchived(false)}
+        onDelete={() => setConfirm({ type: 'project' })}
+      />
+      {project.archived && (
+        <div className="alert alert-archived" role="status">
+          This project is archived. It&apos;s hidden from the projects list until you restore it.
+        </div>
+      )}
+      {actionError && <div className="alert alert-error" role="alert">{actionError}</div>}
+      <ProjectSummary project={project} sketches={sketches} emptyMessage={sketchEmptyMessage(files)} onSaved={handleProjectSaved} />
       <ProjectCompleteness colorways={colorways} />
 
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="tab-panel">
-        {tab === 'bom' ? <BomTab colorways={colorways} onMaterialSaved={handleMaterialSaved} /> : <FilesTab files={files} projectId={project.id ?? projectId} onUploaded={() => setReloads((n) => n + 1)} />}
+        {tab === 'bom' && <BomTab colorways={colorways} vendors={vendorInfo} onMaterialSaved={handleMaterialSaved} />}
+        {tab === 'files' && <FilesTab files={files} projectId={project.id ?? projectId} onUploaded={() => setReloads((n) => n + 1)} canDelete={isAdmin} onDelete={(file) => setConfirm({ type: 'file', file })} />}
+        {tab === 'tasks' && taskState.available && (
+          <TaskList
+            projectId={project.id ?? projectId}
+            tasks={taskState.tasks}
+            error={taskState.error}
+            lines={new Map(colorways.flatMap((c) => c.materials.map((m) => [m.id, { name: m.name, material: m.material, colorway: c.name }])))}
+            onTaskSaved={(saved) => taskState.setTasks((prev) => prev.map((t) => (t.id === saved.id ? saved : t)))}
+          />
+        )}
       </div>
+
+      {confirm?.type === 'project' && (
+        <ConfirmDialog
+          title={`Delete ${project.name}?`}
+          confirmLabel="Delete project"
+          onConfirm={deleteProject}
+          onCancel={() => setConfirm(null)}
+        >
+          <p>
+            This permanently removes <strong>{project.name}</strong> with its BOM, change history and all of its files.
+            This can&apos;t be undone. To hide it instead, use Archive.
+          </p>
+        </ConfirmDialog>
+      )}
+      {confirm?.type === 'file' && (
+        <ConfirmDialog
+          title={`Delete ${confirm.file.file_name}?`}
+          confirmLabel="Delete file"
+          onConfirm={() => deleteFile(confirm.file)}
+          onCancel={() => setConfirm(null)}
+        >
+          <p>
+            This permanently removes <strong>{confirm.file.file_name}</strong> from {project.name}.
+            Values already read from it stay in the BOM. This can&apos;t be undone.
+          </p>
+        </ConfirmDialog>
+      )}
     </>
   )
 }
