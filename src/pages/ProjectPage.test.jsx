@@ -315,6 +315,7 @@ test('Cancel closes the form without saving', async () => {
 
   expect(screen.queryByRole('form')).not.toBeInTheDocument()
   // Nothing saved (the page also loads other data, like tasks, so count saves rather than calls)
+  // Nothing saved (the page also loads the vendor list, so count saves rather than calls)
   expect(api).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ method: 'PATCH' }))
   expect(screen.getByText('1 line missing info')).toBeInTheDocument()
 })
@@ -378,7 +379,7 @@ test('closing project details without changes does not call the API', async () =
 
   expect(screen.queryByRole('form')).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Edit details' })).toBeInTheDocument()
-  // Nothing saved (the page also loads other data, like tasks, so count saves rather than calls)
+  // Nothing saved (the page also loads the vendor list, so count saves rather than calls)
   expect(api).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ method: 'PATCH' }))
 })
 
