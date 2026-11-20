@@ -5,10 +5,16 @@ import { useEffect, useRef, useState } from 'react'
 // - Checks the input before saving and shows each problem next to its field
 // - Sends only the fields that changed; a cleared field is sent as null
 //
-// fields: [{ name, label, type?: 'text' | 'number' | 'date', maxLength?, required? }]
+// fields: [{ name, label, type?, maxLength?, required?, options? }]
+//   type: 'text' (default) | 'number' | 'date' | 'email' | 'tel' | 'textarea' | 'select'
+//   options (select only): [{ value, label }]; values are numbers or strings, '' means none (sent as null)
+// creating: true for an "add new" form, where required fields must be filled in
+//   even if they started blank, and saving with nothing filled in is an error.
 // onSave(changes) should throw to show an error and keep the form open.
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+// Loose on purpose: something@something.something, no spaces
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function toFormValue(value) {
   return value === null || value === undefined ? '' : String(value)
@@ -24,17 +30,34 @@ function listWithAnd(items) {
 }
 
 // Returns { changes, errors } for the current form values
-function check(fields, form, initial) {
+function check(fields, form, initial, creating) {
   const changes = {}
   const errors = {}
 
-  for (const { name, label, type, maxLength, required } of fields) {
+  for (const { name, label, type, maxLength, required, options } of fields) {
     const value = form[name].trim()
+    if (creating && required && value === '') {
+      errors[name] = `${label} is required.`
+      continue
+    }
     if (value === initial[name].trim()) continue
 
     if (value === '') {
       if (required) errors[name] = `${label} can't be left blank.`
       else changes[name] = null
+      continue
+    }
+
+    if (type === 'select') {
+      // The <select> holds strings; send the option's own value (e.g. a numeric id)
+      const option = (options || []).find((o) => String(o.value) === value)
+      if (option) changes[name] = option.value
+      else errors[name] = `Choose a ${lowerFirst(label)} from the list.`
+      continue
+    }
+
+    if (type === 'email' && !EMAIL_PATTERN.test(value)) {
+      errors[name] = `${label} must be an email address, like name@example.com.`
       continue
     }
 
@@ -61,7 +84,9 @@ function check(fields, form, initial) {
   return { changes, errors }
 }
 
-export default function EditForm({ label, idPrefix, fields, values, missing = [], onSave, onCancel, className = '' }) {
+export default function EditForm({
+  label, idPrefix, fields, values, missing = [], onSave, onCancel, className = '', creating = false, saveLabel = 'Save',
+}) {
   const [initial] = useState(() =>
     Object.fromEntries(fields.map(({ name }) => [name, toFormValue(values[name])]))
   )
@@ -97,7 +122,7 @@ export default function EditForm({ label, idPrefix, fields, values, missing = []
 
   async function handleSubmit(e) {
     e.preventDefault()
-    const { changes, errors: found } = check(fields, form, initial)
+    const { changes, errors: found } = check(fields, form, initial, creating)
 
     setServerError('')
     setErrors(found)
@@ -140,31 +165,56 @@ export default function EditForm({ label, idPrefix, fields, values, missing = []
       )}
 
       <div className="edit-grid">
-        {fields.map(({ name, label: fieldLabel, type, maxLength }) => {
+        {fields.map(({ name, label: fieldLabel, type, maxLength, required, options }) => {
           const id = `${idPrefix}-${name}`
           const isMissing = missingSet.has(name)
           const error = errors[name]
           const describedBy = [isMissing && `${id}-flag`, error && `${id}-error`].filter(Boolean).join(' ')
-          const classes = ['field', isMissing && 'field-missing', error && 'field-invalid'].filter(Boolean).join(' ')
+          const classes = [
+            'field', type === 'textarea' && 'field-wide', isMissing && 'field-missing', error && 'field-invalid',
+          ].filter(Boolean).join(' ')
+          const shared = {
+            id,
+            ref: (el) => { inputs.current[name] = el },
+            value: form[name],
+            onChange: update(name),
+            'aria-invalid': error ? true : undefined,
+            'aria-describedby': describedBy || undefined,
+            'aria-required': creating && required ? true : undefined,
+          }
+
+          let control
+          if (type === 'select') {
+            control = (
+              <select {...shared}>
+                {(options || []).map((o) => (
+                  <option key={String(o.value)} value={String(o.value)}>{o.label}</option>
+                ))}
+              </select>
+            )
+          } else if (type === 'textarea') {
+            control = <textarea {...shared} rows={3} maxLength={maxLength} />
+          } else {
+            const inputType = ['number', 'date', 'email', 'tel'].includes(type) ? type : 'text'
+            control = (
+              <input
+                {...shared}
+                type={inputType}
+                step={type === 'number' ? 'any' : undefined}
+                min={type === 'number' ? 0 : undefined}
+                maxLength={type === 'number' || type === 'date' ? undefined : maxLength}
+                autoComplete={type === 'email' ? 'email' : type === 'tel' ? 'tel' : undefined}
+              />
+            )
+          }
 
           return (
             <div className={classes} key={name}>
               <div className="field-label-row">
-                <label htmlFor={id}>{fieldLabel}</label>
+                <label htmlFor={id}>{fieldLabel}{creating && required && <span className="required-mark" aria-hidden="true"> *</span>}</label>
                 {isMissing && <span className="field-flag" id={`${id}-flag`}>Missing</span>}
               </div>
-              <input
-                id={id}
-                ref={(el) => { inputs.current[name] = el }}
-                type={type === 'number' || type === 'date' ? type : 'text'}
-                step={type === 'number' ? 'any' : undefined}
-                min={type === 'number' ? 0 : undefined}
-                maxLength={type === 'number' || type === 'date' ? undefined : maxLength}
-                value={form[name]}
-                onChange={update(name)}
-                aria-invalid={error ? true : undefined}
-                aria-describedby={describedBy || undefined}
-              />
+              {control}
               {error && <span className="field-error" id={`${id}-error`}>{error}</span>}
             </div>
           )
@@ -173,7 +223,7 @@ export default function EditForm({ label, idPrefix, fields, values, missing = []
 
       <div className="edit-actions">
         <button type="submit" className="primary-button" disabled={saving}>
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? 'Saving…' : saveLabel}
         </button>
         <button type="button" className="secondary-button" onClick={onCancel} disabled={saving}>
           Cancel

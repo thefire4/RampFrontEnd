@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -139,4 +139,52 @@ test('percent comes from the line counts, rounded down', async () => {
   // One line still missing, so not 100%
   expect(within(await row('Almost Done')).getByText('99%')).toBeInTheDocument()
   expect(within(await row('Almost Done')).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '99')
+})
+
+// RAMP-139: open tasks per project
+test('shows how many open tasks each project has', async () => {
+  api.mockImplementation(async (path) => {
+    if (path === '/projects/7/tasks') return { tasks: [{ id: 1, status: 'open' }, { id: 2, status: 'in progress' }, { id: 3, status: 'done' }] }
+    if (path.endsWith('/tasks')) return { tasks: [] }
+    return { projects }
+  })
+  renderList()
+
+  await screen.findByRole('link', { name: 'Test Jacket' })
+  expect(screen.getByRole('columnheader', { name: 'Open tasks' })).toBeInTheDocument()
+  expect(await within(rowFor('Test Jacket')).findByText('2 open')).toBeInTheDocument()
+  // Zip Hoodie has a missing BOM item but no open tasks
+  expect(within(rowFor('Zip Hoodie')).getByText('0 open')).toBeInTheDocument()
+  expect(rowFor('Zip Hoodie')).toHaveTextContent('1 missing')
+})
+
+test('uses open_tasks from the list when the server sends it', async () => {
+  api.mockResolvedValue({ projects: projects.map((p, i) => ({ ...p, open_tasks: i + 4 })) })
+  renderList()
+
+  expect(await within((await screen.findByRole('link', { name: 'Test Jacket' })).closest('tr')).findByText('4 open')).toBeInTheDocument()
+  expect(api).not.toHaveBeenCalledWith('/projects/7/tasks')
+})
+
+test('hides the open tasks column on a server without tasks', async () => {
+  api.mockImplementation(async (path) => {
+    if (path.endsWith('/tasks')) throw Object.assign(new Error('Not found.'), { status: 404 })
+    return { projects }
+  })
+  renderList()
+
+  await screen.findByRole('link', { name: 'Test Jacket' })
+  await waitFor(() => expect(api).toHaveBeenCalledWith('/projects/9/tasks'))
+  await waitFor(() => expect(screen.queryByRole('columnheader', { name: 'Open tasks' })).not.toBeInTheDocument())
+})
+
+// Found by a flaky CI run: both columns said "None", so a row had two of them
+test('a project with nothing missing and no open tasks reads clearly', async () => {
+  api.mockImplementation(async (path) => (path.endsWith('/tasks') ? { tasks: [] } : { projects }))
+  renderList()
+
+  const row = (await screen.findByRole('link', { name: 'Shirt Jac' })).closest('tr')
+  expect(await within(row).findByText('0 open')).toBeInTheDocument()
+  // Only the Missing BOM items column says None
+  expect(within(row).getAllByText('None')).toHaveLength(1)
 })

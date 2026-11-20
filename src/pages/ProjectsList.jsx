@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api.js'
+import { useOpenTaskCounts } from '../components/tasks.js'
 import { percentComplete } from './bomFields.js'
 
 const stageLabels = {
@@ -46,6 +47,13 @@ function BomProgress({ project }) {
       <span className="percent">{percent}%</span>
     </div>
   )
+}
+
+function OpenTasks({ count }) {
+  if (count === undefined) return <span className="muted-dash">…</span>
+  // "0 open" rather than "None", so it can't be mistaken for the Missing BOM items column next to it
+  if (count === 0) return <span className="badge badge-ok">0 open</span>
+  return <span className="badge badge-tasks">{count} open</span>
 }
 
 function MissingCount({ count }) {
@@ -147,6 +155,8 @@ export default function ProjectsList() {
   }
   const filtersActive = Object.values(filters).some((v) => v !== '')
   const visible = filterProjects(projects, filters)
+  // RAMP-139: open tasks per project
+  const openTasks = useOpenTaskCounts(projects)
 
   function setFilter(key, value) {
     const next = new URLSearchParams(searchParams)
@@ -198,6 +208,7 @@ export default function ProjectsList() {
                 <th scope="col">BOM complete</th>
                 <th scope="col">Created</th>
                 <th scope="col">Missing BOM items</th>
+                {openTasks.available && <th scope="col">Open tasks</th>}
               </tr>
             </thead>
             <tbody>
@@ -216,6 +227,7 @@ export default function ProjectsList() {
                   <td><BomProgress project={p} /></td>
                   <td>{formatDate(p.created_at)}</td>
                   <td><MissingCount count={p.missing_bom_items} /></td>
+                  {openTasks.available && <td><OpenTasks count={openTasks.counts.get(p.id)} /></td>}
                 </tr>
               ))}
             </tbody>

@@ -416,3 +416,51 @@ a.source-tag:hover { color: var(--accent); text-decoration-style: solid; }
   font-size: 11px; font-weight: 600; color: var(--ink-soft);
 }
 .viewer-tab { margin-left: 8px; font-size: 13px; font-weight: 400; color: var(--muted); }
+/* Tasks (RAMP-139) */
+.task-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.task-toolbar .muted { flex: 1 1 260px; font-size: 13px; }
+.task-table td { vertical-align: top; }
+.task-table select, .task-table input[type="date"] {
+  height: 34px; max-width: 100%; padding: 0 8px; border: 1px solid #bdbdb6; border-radius: 6px;
+  font: inherit; font-size: 13px; background: #fff;
+}
+.task-table select:disabled, .task-table input:disabled { opacity: 0.6; }
+.task-table .badge { margin-top: 4px; }
+.task-table .field-error { display: block; margin-top: 4px; }
+.task-done td { color: var(--muted); }
+.task-done .row-title { color: var(--muted); }
+.task-overdue td:last-child input { border-color: #d27a7a; }
+.badge-tasks { background: #eef1fb; border-color: #a9b6e6; color: #1f3fbf; }
+/* Vendors (RAMP-145) */
+.page-header-row { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.page-header-row .primary-button { margin-top: 0; padding: 0 18px; }
+.field textarea {
+  min-height: 72px; padding: 8px 12px; border: 1px solid #bdbdb6; border-radius: 6px;
+  font: inherit; background: #fff; resize: vertical;
+}
+.field-missing textarea, .field-missing select { border-color: #d27a7a; background: #fff8f8; }
+.field-invalid textarea, .field-invalid select { border: 2px solid #a12020; }
+.field select { padding: 0 8px; }
+.field-wide { grid-column: 1 / -1; }
+.required-mark { color: #a12020; }
+.vendor-table td { vertical-align: top; }
+.vendor-table .badge { margin-top: 4px; }
+.vendor-contact { display: flex; flex-direction: column; gap: 1px; font-size: 13px; line-height: 1.35; }
+.vendor-contact a { overflow-wrap: anywhere; }
+.vendor-name { font-weight: 600; }
+.vendor-person { color: var(--ink-soft); }
+.vendor-reach { color: var(--muted); }
+.vendor-contact-cell { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); font-size: 12px; }
+.vendor-contact-large { font-size: 15px; gap: 4px; }
+.vendor-contact-large .vendor-person { font-weight: 600; color: var(--ink); }
+.vendor-notes { margin: 0; font-size: 14px; color: var(--ink-soft); white-space: pre-line; }
+.attention-vendor { margin-top: 4px; }
+.attention-vendor .vendor-contact { display: inline-flex; flex-direction: row; flex-wrap: wrap; gap: 0 8px; font-size: 13px; }
+.panel-title { margin: 0; font-size: 16px; }
+.panel-title .muted { font-weight: 400; }
+/* Activity log */
+.activity-table td { vertical-align: top; }
+.activity-table .badge { margin-top: 4px; }
+.nowrap { white-space: nowrap; }
+.old-value { color: var(--muted); text-decoration: line-through; }
+.result-count { margin: 4px 0; }
