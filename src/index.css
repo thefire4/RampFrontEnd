@@ -409,3 +409,10 @@ a.source-tag:hover { color: var(--accent); text-decoration-style: solid; }
   font: inherit; font-size: 13px; text-decoration: underline;
 }
 .link-like:disabled { color: var(--muted); cursor: default; }
+
+/* Activity log */
+.activity-table td { vertical-align: top; }
+.activity-table .badge { margin-top: 4px; }
+.nowrap { white-space: nowrap; }
+.old-value { color: var(--muted); text-decoration: line-through; }
+.result-count { margin: 4px 0; }

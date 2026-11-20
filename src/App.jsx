@@ -9,6 +9,7 @@ import Users from './pages/Users.jsx'
 import Placeholder from './pages/Placeholder.jsx'
 import MissingItems from './pages/MissingItems.jsx'
 import PartDetail from './pages/PartDetail.jsx'
+import ActivityLog from './pages/ActivityLog.jsx'
 import NewProject from './pages/NewProject.jsx'
 
 export default function App() {
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/projects" element={<ProjectsList />} />
           <Route path="/projects/new" element={<NewProject />} />
           <Route path="/projects/:projectId" element={<ProjectPage />} />
+          <Route path="/projects/:projectId/activity" element={<ActivityLog />} />
           <Route path="/projects/:projectId/missing" element={<MissingItems />} />
           <Route path="/projects/:projectId/parts/:partId" element={<PartDetail />} />
           <Route path="/tasks" element={<Placeholder title="Tasks & follow-ups" />} />
