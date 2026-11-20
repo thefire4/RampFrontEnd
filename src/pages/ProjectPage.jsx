@@ -4,6 +4,8 @@ import { api } from '../api.js'
 import { percentComplete } from './bomFields.js'
 import EditForm from '../components/EditForm.jsx'
 import ImageGallery from '../components/ImageGallery.jsx'
+import VendorContact from '../components/VendorContact.jsx'
+import { useVendors, vendorOptions, vendorsById } from '../components/vendors.js'
 import UploadList from '../components/UploadList.jsx'
 import { ACCEPT_ATTRIBUTE, ACCEPTED_DESCRIPTION, friendlyUploadError, toUploadItems } from '../components/uploads.js'
 
@@ -416,7 +418,7 @@ function StatCards({ lines }) {
   )
 }
 
-function NeedsAttention({ lines, colorwayName, onEdit, editDisabled }) {
+function NeedsAttention({ lines, colorwayName, vendors, onEdit, editDisabled }) {
   const open = lines.filter((m) => missingFields(m).length > 0)
   if (open.length === 0) return null
 
@@ -433,6 +435,11 @@ function NeedsAttention({ lines, colorwayName, onEdit, editDisabled }) {
             </div>
             <div className="attention-owner">
               Responsible: <strong>{isBlank(m.supplier_contact) ? '[Unassigned]' : m.supplier_contact}</strong>
+              {vendors.byId.has(m.vendor_id) && (
+                <div className="attention-vendor">
+                  Vendor: <VendorContact vendor={vendors.byId.get(m.vendor_id)} />
+                </div>
+              )}
             </div>
             <button
               type="button"
@@ -481,7 +488,7 @@ function MissingLabel({ fields }) {
   )
 }
 
-function BomRow({ m, onEdit, editDisabled }) {
+function BomRow({ m, vendors, onEdit, editDisabled }) {
   const { projectId } = useParams()
   const gaps = missingFields(m)
   const isOpen = gaps.length > 0
@@ -514,7 +521,14 @@ function BomRow({ m, onEdit, editDisabled }) {
         {ownSource('material')}
         {isOpen && <MissingLabel fields={gaps} />}
       </td>
-      <td className={requiredCell('supplier')} title={tip('supplier')}>{required(m.supplier)}{ownSource('supplier')}</td>
+      <td className={['wrap-cell', requiredCell('supplier')].filter(Boolean).join(' ')} title={tip('supplier')}>
+        {required(m.supplier)}
+        {ownSource('supplier')}
+        {/* RAMP-145: the linked vendor's contact, so it's clear who to follow up with */}
+        {vendors.byId.has(m.vendor_id) && (
+          <VendorContact vendor={vendors.byId.get(m.vendor_id)} className="vendor-contact-cell" />
+        )}
+      </td>
       <td className={requiredCell('color')} title={tip('color')}>{required(m.color)}{ownSource('color')}</td>
       <td className={['wrap-cell', requiredCell('location')].filter(Boolean).join(' ')} title={tip('location')}>
         {required(m.location)}{ownSource('location')}
@@ -552,12 +566,23 @@ function BomRow({ m, onEdit, editDisabled }) {
   )
 }
 
-function BomEditRow({ m, onCancel, onSaved }) {
+// The BOM line form, plus a vendor dropdown after Supplier when the server has vendors (RAMP-145)
+function bomFieldsWithVendor(vendors) {
+  if (!vendors.available) return BOM_FIELDS
+  const vendorField = { name: 'vendor_id', label: 'Vendor', type: 'select', options: vendorOptions(vendors.list) }
+  const at = BOM_FIELDS.findIndex((f) => f.name === 'supplier') + 1
+  return [...BOM_FIELDS.slice(0, at), vendorField, ...BOM_FIELDS.slice(at)]
+}
+
+function BomEditRow({ m, vendors, onCancel, onSaved }) {
   async function save(changes) {
     const data = await api(`/materials/${encodeURIComponent(m.id)}`, { method: 'PATCH', body: changes })
     const saved = data.material ?? { ...m, ...changes }
-    // The save response has no sources, so mark what was just typed in as entered by hand
-    onSaved({ ...saved, fields: markEnteredByHand(m.fields, changes) })
+    // The save response has no sources, so mark what was just typed in as entered by hand.
+    // The vendor link isn't one of the line's text values, so it doesn't get a source label.
+    const typed = { ...changes }
+    delete typed.vendor_id
+    onSaved({ ...saved, fields: markEnteredByHand(m.fields, typed) })
   }
 
   return (
@@ -566,7 +591,7 @@ function BomEditRow({ m, onCancel, onSaved }) {
         <EditForm
           label={`Edit ${m.name || 'line'}`}
           idPrefix={`edit-${m.id}`}
-          fields={BOM_FIELDS}
+          fields={bomFieldsWithVendor(vendors)}
           values={m}
           missing={missingKeys(m)}
           onSave={save}
@@ -577,7 +602,7 @@ function BomEditRow({ m, onCancel, onSaved }) {
   )
 }
 
-function BomTab({ colorways, onMaterialSaved }) {
+function BomTab({ colorways, vendors, onMaterialSaved }) {
   const [selectedId, setSelectedId] = useState(colorways[0]?.id)
   const [openOnly, setOpenOnly] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -608,6 +633,7 @@ function BomTab({ colorways, onMaterialSaved }) {
       <NeedsAttention
         lines={lines}
         colorwayName={selected.name}
+        vendors={vendors}
         onEdit={(id) => setEditingId(id)}
         editDisabled={editingId !== null}
       />
@@ -647,6 +673,7 @@ function BomTab({ colorways, onMaterialSaved }) {
                       <BomEditRow
                         key={m.id}
                         m={m}
+                        vendors={vendors}
                         onCancel={() => setEditingId(null)}
                         onSaved={(updated) => {
                           onMaterialSaved(selected.id, updated)
@@ -654,7 +681,7 @@ function BomTab({ colorways, onMaterialSaved }) {
                         }}
                       />
                     ) : (
-                      <BomRow key={m.id} m={m} onEdit={() => setEditingId(m.id)} editDisabled={editingId !== null} />
+                      <BomRow key={m.id} m={m} vendors={vendors} onEdit={() => setEditingId(m.id)} editDisabled={editingId !== null} />
                     )
                   )}
                 </tbody>
@@ -782,6 +809,13 @@ function ProjectView({ projectId }) {
   const [tab, setTab] = useState('bom')
   // Bumped after an upload so the project reloads with the new file's details and BOM lines
   const [reloads, setReloads] = useState(0)
+  // RAMP-145: BOM lines only carry vendor_id, so load the vendor list once to show contacts
+  const vendorList = useVendors()
+  const vendorInfo = {
+    available: vendorList.available && !vendorList.error,
+    list: vendorList.vendors,
+    byId: vendorsById(vendorList.vendors),
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -857,7 +891,7 @@ function ProjectView({ projectId }) {
 
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="tab-panel">
-        {tab === 'bom' ? <BomTab colorways={colorways} onMaterialSaved={handleMaterialSaved} /> : <FilesTab files={files} projectId={project.id ?? projectId} onUploaded={() => setReloads((n) => n + 1)} />}
+        {tab === 'bom' ? <BomTab colorways={colorways} vendors={vendorInfo} onMaterialSaved={handleMaterialSaved} /> : <FilesTab files={files} projectId={project.id ?? projectId} onUploaded={() => setReloads((n) => n + 1)} />}
       </div>
     </>
   )
