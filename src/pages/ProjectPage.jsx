@@ -4,6 +4,8 @@ import { api } from '../api.js'
 import { percentComplete } from './bomFields.js'
 import EditForm from '../components/EditForm.jsx'
 import ImageGallery from '../components/ImageGallery.jsx'
+import TaskList from '../components/TaskList.jsx'
+import { isOpenTask, useProjectTasks } from '../components/tasks.js'
 import VendorContact from '../components/VendorContact.jsx'
 import { useVendors, vendorOptions, vendorsById } from '../components/vendors.js'
 import UploadList from '../components/UploadList.jsx'
@@ -809,6 +811,9 @@ function ProjectView({ projectId }) {
   const [tab, setTab] = useState('bom')
   // Bumped after an upload so the project reloads with the new file's details and BOM lines
   const [reloads, setReloads] = useState(0)
+  // RAMP-139: tasks reload after a BOM line is saved, since the backend opens and closes them
+  const [taskReloads, setTaskReloads] = useState(0)
+  const taskState = useProjectTasks(projectId, reloads + taskReloads)
   // RAMP-145: BOM lines only carry vendor_id, so load the vendor list once to show contacts
   const vendorList = useVendors()
   const vendorInfo = {
@@ -830,6 +835,7 @@ function ProjectView({ projectId }) {
 
   // Swap the saved line into state; stats, flags and Needs attention recalculate from it
   function handleMaterialSaved(colorwayId, updated) {
+    setTaskReloads((n) => n + 1)
     setData((prev) => ({
       ...prev,
       colorways: prev.colorways.map((c) =>
@@ -881,6 +887,8 @@ function ProjectView({ projectId }) {
   const tabs = [
     { id: 'bom', label: `BOM (${totalLines})` },
     { id: 'files', label: `Files (${files.length})` },
+    // Only when the server has tasks (RAMP-138)
+    ...(taskState.available ? [{ id: 'tasks', label: `Tasks (${taskState.tasks.filter(isOpenTask).length} open)` }] : []),
   ]
 
   return (
@@ -891,7 +899,17 @@ function ProjectView({ projectId }) {
 
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="tab-panel">
-        {tab === 'bom' ? <BomTab colorways={colorways} vendors={vendorInfo} onMaterialSaved={handleMaterialSaved} /> : <FilesTab files={files} projectId={project.id ?? projectId} onUploaded={() => setReloads((n) => n + 1)} />}
+        {tab === 'bom' && <BomTab colorways={colorways} vendors={vendorInfo} onMaterialSaved={handleMaterialSaved} />}
+        {tab === 'files' && <FilesTab files={files} projectId={project.id ?? projectId} onUploaded={() => setReloads((n) => n + 1)} />}
+        {tab === 'tasks' && taskState.available && (
+          <TaskList
+            projectId={project.id ?? projectId}
+            tasks={taskState.tasks}
+            error={taskState.error}
+            lines={new Map(colorways.flatMap((c) => c.materials.map((m) => [m.id, { name: m.name, material: m.material, colorway: c.name }])))}
+            onTaskSaved={(saved) => taskState.setTasks((prev) => prev.map((t) => (t.id === saved.id ? saved : t)))}
+          />
+        )}
       </div>
     </>
   )

@@ -314,6 +314,7 @@ test('Cancel closes the form without saving', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
   expect(screen.queryByRole('form')).not.toBeInTheDocument()
+  // Nothing saved (the page also loads other data, like tasks, so count saves rather than calls)
   // Nothing saved (the page also loads the vendor list, so count saves rather than calls)
   expect(api).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ method: 'PATCH' }))
   expect(screen.getByText('1 line missing info')).toBeInTheDocument()
